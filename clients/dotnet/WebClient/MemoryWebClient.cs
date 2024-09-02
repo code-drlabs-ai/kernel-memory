@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft. All rights reserved.
+﻿// Copyright (c) Microsoft. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -373,7 +373,7 @@ public sealed class MemoryWebClient : IKernelMemory
     }
 
     /// <inheritdoc />
-    public async Task<IAsyncEnumerable<MemoryAnswer>> AskAsyncChunk(
+    public Task<IAsyncEnumerable<MemoryAnswer>> AskAsyncChunk(
         string question,
         string? index = null,
         MemoryFilter? filter = null,
@@ -389,6 +389,23 @@ public sealed class MemoryWebClient : IKernelMemory
             filters.Add(filter);
         }
 
+        return Task.FromResult<IAsyncEnumerable<MemoryAnswer>>(this.InternalAskAsyncChunk(
+            index: index,
+            question: question,
+            filters: filters,
+            minRelevance: minRelevance,
+            context: context,
+            cancellationToken: cancellationToken));
+    }
+
+    public async IAsyncEnumerable<MemoryAnswer> InternalAskAsyncChunk(
+        string question,
+        string? index = null,
+        ICollection<MemoryFilter>? filters = null,
+        double minRelevance = 0,
+        IContext? context = null,
+        CancellationToken cancellationToken = default)
+    {
         MemoryQuery request = new()
         {
             Index = index,
