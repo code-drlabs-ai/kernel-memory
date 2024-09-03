@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.KernelMemory.Models;
 
 namespace Microsoft.KernelMemory;
 
@@ -49,6 +50,13 @@ public class MemoryAnswer
     [JsonPropertyName("relevantSources")]
     [JsonPropertyOrder(20)]
     public List<Citation> RelevantSources { get; set; } = new();
+
+    /// <summary>
+    /// Token usage information about the question and answer.
+    /// </summary>
+    [JsonPropertyName("completionUsage")]
+    [JsonPropertyOrder(30)]
+    public CompletionUsage CompletionUsage { get; set; } = new(0, 0, 0);
 
     /// <summary>
     /// Serialize using .NET JSON serializer, e.g. to avoid ambiguity

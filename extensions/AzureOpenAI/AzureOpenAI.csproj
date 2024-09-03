@@ -10,12 +10,13 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\service\Abstractions\Abstractions.csproj" />
-        <ProjectReference Include="..\OpenAI\OpenAI\OpenAI.csproj" />
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Azure.AI.OpenAI" />
         <PackageReference Include="Azure.Identity" />
-        <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" />
+        <PackageReference Include="Microsoft.ML.Tokenizers" />
+        <PackageReference Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" />
     </ItemGroup>
 
     <PropertyGroup>

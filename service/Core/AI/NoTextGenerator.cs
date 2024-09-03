@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.KernelMemory.Diagnostics;
+using Microsoft.KernelMemory.Models;
 
 namespace Microsoft.KernelMemory.AI;
 
@@ -46,5 +47,10 @@ public class NoTextGenerator : ITextGenerator
     {
         this._log.LogCritical("The application is attempting to generate text even if text generation has been disabled");
         return new NotImplementedException("Text generation has been disabled");
+    }
+
+    public IAsyncEnumerable<TextGenerationResult> GenerateTextChunkAsync(string prompt, TextGenerationOptions options, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 }

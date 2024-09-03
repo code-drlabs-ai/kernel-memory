@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Threading;
+using Microsoft.KernelMemory.Models;
 
 namespace Microsoft.KernelMemory.AI;
 
@@ -20,6 +21,18 @@ public interface ITextGenerator : ITextTokenizer
     /// <param name="cancellationToken">Async task cancellation token</param>
     /// <returns>Text generated, returned as a stream of strings/tokens</returns>
     public IAsyncEnumerable<string> GenerateTextAsync(
+        string prompt,
+        TextGenerationOptions options,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generate text for the given prompt, aka generate a text completion and return the token usages.
+    /// </summary>
+    /// <param name="prompt">Prompt text</param>
+    /// <param name="options">Options for the LLM request</param>
+    /// <param name="cancellationToken">Async task cancellation token</param>
+    /// <returns>Text generated, returned as a stream of strings/tokens</returns>
+    public IAsyncEnumerable<TextGenerationResult> GenerateTextChunkAsync(
         string prompt,
         TextGenerationOptions options,
         CancellationToken cancellationToken = default);

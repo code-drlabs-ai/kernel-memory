@@ -15,6 +15,7 @@ using Microsoft.KernelMemory.Context;
 using Microsoft.KernelMemory.Diagnostics;
 using Microsoft.KernelMemory.MemoryStorage;
 using Microsoft.KernelMemory.Prompts;
+using Microsoft.KernelMemory.Models;
 
 namespace Microsoft.KernelMemory.Search;
 
@@ -511,10 +512,10 @@ public sealed class SearchClient : ISearchClient
             yield break;
         }
         var charsGenerated = 0;
-        await foreach (var x in this.GenerateAnswer(question, facts.ToString(), context, cancellationToken).ConfigureAwait(true))
+        await foreach (var x in this.GenerateAnswerChunk(question, facts.ToString(), context, cancellationToken).ConfigureAwait(true))
         {
             var text = new StringBuilder();
-            text.Append(x);
+            text.Append(x.GeneratedText);
             if (this._log.IsEnabled(LogLevel.Trace) && text.Length - charsGenerated >= 30)
             {
                 charsGenerated = text.Length;
@@ -524,7 +525,8 @@ public sealed class SearchClient : ISearchClient
             {
                 Question = question,
                 NoResult = false,
-                Result = text.ToString()
+                Result = text.ToString(),
+                CompletionUsage = new CompletionUsage(x.CompletionTokens, x.PromptTokens, x.TotalTokens)
             };
             this._log.LogInformation("Chunk: '{0}", newAnswer.Result);
             yield return newAnswer;
@@ -566,6 +568,40 @@ public sealed class SearchClient : ISearchClient
         }
 
         return this._textGenerator.GenerateTextAsync(prompt, options, token);
+    }
+
+    private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token)
+    {
+        string prompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
+        int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
+        double temperature = context.GetCustomRagTemperatureOrDefault(this._config.Temperature);
+        double nucleusSampling = context.GetCustomRagNucleusSamplingOrDefault(this._config.TopP);
+
+        prompt = prompt.Replace("{{$facts}}", facts.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        question = question.Trim();
+        prompt = prompt.Replace("{{$input}}", question, StringComparison.OrdinalIgnoreCase);
+        prompt = prompt.Replace("{{$notFound}}", this._config.EmptyAnswer, StringComparison.OrdinalIgnoreCase);
+
+        var options = new TextGenerationOptions
+        {
+            MaxTokens = maxTokens,
+            Temperature = temperature,
+            NucleusSampling = nucleusSampling,
+            PresencePenalty = this._config.PresencePenalty,
+            FrequencyPenalty = this._config.FrequencyPenalty,
+            StopSequences = this._config.StopSequences,
+            TokenSelectionBiases = this._config.TokenSelectionBiases,
+        };
+
+        if (this._log.IsEnabled(LogLevel.Debug))
+        {
+            this._log.LogDebug("Running RAG prompt, size: {0} tokens, requesting max {1} tokens",
+                this._textGenerator.CountTokens(prompt),
+                this._config.AnswerTokens);
+        }
+
+        return this._textGenerator.GenerateTextChunkAsync(prompt, options, token);
     }
 
     private static bool ValueIsEquivalentTo(string value, string target)

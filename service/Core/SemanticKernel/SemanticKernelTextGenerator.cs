@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.KernelMemory.AI;
 using Microsoft.KernelMemory.AI.OpenAI;
 using Microsoft.KernelMemory.Diagnostics;
+using Microsoft.KernelMemory.Models;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.TextGeneration;
 
@@ -94,5 +95,10 @@ internal sealed class SemanticKernelTextGenerator : ITextGenerator
         }
 
         return settings;
+    }
+
+    public IAsyncEnumerable<TextGenerationResult> GenerateTextChunkAsync(string prompt, TextGenerationOptions options, CancellationToken cancellationToken = default)
+    {
+        throw new System.NotImplementedException();
     }
 }

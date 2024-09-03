@@ -7,12 +7,10 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Azure.Identity;
 using Microsoft.Extensions.Logging;
-using Microsoft.KernelMemory.AI.OpenAI;
 using Microsoft.KernelMemory.Diagnostics;
 using Microsoft.SemanticKernel.AI.Embeddings;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 
 namespace Microsoft.KernelMemory.AI.AzureOpenAI;
 
@@ -48,27 +46,27 @@ public sealed class AzureOpenAITextEmbeddingGenerator : ITextEmbeddingGenerator,
 
         switch (config.Auth)
         {
-            case AzureOpenAIConfig.AuthTypes.AzureIdentity:
-                this._client = new AzureOpenAITextEmbeddingGenerationService(
-                    deploymentName: config.Deployment,
-                    endpoint: config.Endpoint,
-                    credential: new DefaultAzureCredential(),
-                    modelId: config.Deployment,
-                    httpClient: httpClient,
-                    dimensions: config.EmbeddingDimensions,
-                    loggerFactory: loggerFactory);
-                break;
+            //case AzureOpenAIConfig.AuthTypes.AzureIdentity:
+            //    this._client = new OpenAITextEmbeddingGenerationService(
+            //        //deploymentName: config.Deployment,
+            //        endpoint: config.Endpoint,
+            //        credential: new DefaultAzureCredential(),
+            //        modelId: config.Deployment,
+            //        httpClient: httpClient,
+            //        dimensions: config.EmbeddingDimensions,
+            //        loggerFactory: loggerFactory);
+            //    break;
 
-            case AzureOpenAIConfig.AuthTypes.ManualTokenCredential:
-                this._client = new AzureOpenAITextEmbeddingGenerationService(
-                    deploymentName: config.Deployment,
-                    endpoint: config.Endpoint,
-                    credential: config.GetTokenCredential(),
-                    modelId: config.Deployment,
-                    httpClient: httpClient,
-                    dimensions: config.EmbeddingDimensions,
-                    loggerFactory: loggerFactory);
-                break;
+            //case AzureOpenAIConfig.AuthTypes.ManualTokenCredential:
+            //    this._client = new AzureOpenAITextEmbeddingGenerationService(
+            //        deploymentName: config.Deployment,
+            //        endpoint: config.Endpoint,
+            //        credential: config.GetTokenCredential(),
+            //        modelId: config.Deployment,
+            //        httpClient: httpClient,
+            //        dimensions: config.EmbeddingDimensions,
+            //        loggerFactory: loggerFactory);
+            //    break;
 
             case AzureOpenAIConfig.AuthTypes.APIKey:
                 this._client = new AzureOpenAITextEmbeddingGenerationService(
