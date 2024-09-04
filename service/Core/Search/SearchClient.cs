@@ -331,23 +331,24 @@ public sealed class SearchClient : ISearchClient
             return noAnswerFound;
         }
 
-        var text = new StringBuilder();
         var charsGenerated = 0;
+        CompletionUsage? completionUsage;
+        var completeAnswer = new StringBuilder();
         var watch = new Stopwatch();
         watch.Restart();
-        await foreach (var x in this.GenerateAnswer(question, facts.ToString(), context, cancellationToken).ConfigureAwait(false))
+        await foreach (var x in this.GenerateAnswer(question, facts.ToString(), context, cancellationToken, out completionUsage).ConfigureAwait(false))
         {
-            text.Append(x);
-            if (this._log.IsEnabled(LogLevel.Trace) && text.Length - charsGenerated >= 30)
+            completeAnswer.Append(x);
+            if (this._log.IsEnabled(LogLevel.Trace) && completeAnswer.Length - charsGenerated >= 30)
             {
-                charsGenerated = text.Length;
+                charsGenerated = completeAnswer.Length;
                 this._log.LogTrace("{0} chars generated", charsGenerated);
             }
         }
 
         watch.Stop();
 
-        answer.Result = text.ToString();
+        answer.Result = completeAnswer.ToString();
         answer.NoResult = ValueIsEquivalentTo(answer.Result, this._config.EmptyAnswer);
         if (answer.NoResult)
         {
@@ -358,6 +359,9 @@ public sealed class SearchClient : ISearchClient
         {
             this._log.LogTrace("Answer generated in {0} msecs", watch.ElapsedMilliseconds);
         }
+        answer.CompletionUsage = completionUsage;
+        answer.CompletionUsage.CompletionTokens = this._textGenerator.CountTokens(completeAnswer.ToString());
+        answer.CompletionUsage.TotalTokens = answer.CompletionUsage.PromptTokens + answer.CompletionUsage.CompletionTokens;
 
         return answer;
     }
@@ -380,7 +384,7 @@ public sealed class SearchClient : ISearchClient
         {
             Question = question,
             NoResult = true,
-            Result = emptyAnswer,
+            Result = emptyAnswer
         };
 
         if (string.IsNullOrEmpty(question))
@@ -512,10 +516,12 @@ public sealed class SearchClient : ISearchClient
             yield break;
         }
         var charsGenerated = 0;
-        await foreach (var x in this.GenerateAnswerChunk(question, facts.ToString(), context, cancellationToken).ConfigureAwait(true))
+        CompletionUsage? completionUsage;
+        var completeAnswer = new StringBuilder();
+        await foreach (var x in this.GenerateAnswerChunk(question, facts.ToString(), context, cancellationToken, out completionUsage).ConfigureAwait(true))
         {
-            var text = new StringBuilder();
-            text.Append(x.GeneratedText);
+            completeAnswer.Append(x.GeneratedText);
+            var text = new StringBuilder().Append(x.GeneratedText);
             if (this._log.IsEnabled(LogLevel.Trace) && text.Length - charsGenerated >= 30)
             {
                 charsGenerated = text.Length;
@@ -532,11 +538,14 @@ public sealed class SearchClient : ISearchClient
             yield return newAnswer;
         }
         answer.Result = eosToken;
+        answer.CompletionUsage = completionUsage;
+        answer.CompletionUsage.CompletionTokens = this._textGenerator.CountTokens(completeAnswer.ToString());
+        answer.CompletionUsage.TotalTokens = answer.CompletionUsage.PromptTokens + answer.CompletionUsage.CompletionTokens;
         this._log.LogInformation("Eos token: '{0}", answer.Result);
         yield return answer;
     }
 
-    private IAsyncEnumerable<string> GenerateAnswer(string question, string facts, IContext? context, CancellationToken token)
+    private IAsyncEnumerable<string> GenerateAnswer(string question, string facts, IContext? context, CancellationToken token, out CompletionUsage completionUsage)
     {
         string prompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
         int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
@@ -560,17 +569,19 @@ public sealed class SearchClient : ISearchClient
             TokenSelectionBiases = this._config.TokenSelectionBiases,
         };
 
+        var promptTokens = this._textGenerator.CountTokens(prompt);
+        completionUsage = new CompletionUsage(promptTokens: promptTokens, totalTokens: promptTokens);
         if (this._log.IsEnabled(LogLevel.Debug))
         {
             this._log.LogDebug("Running RAG prompt, size: {0} tokens, requesting max {1} tokens",
-                this._textGenerator.CountTokens(prompt),
+                promptTokens,
                 this._config.AnswerTokens);
         }
 
         return this._textGenerator.GenerateTextAsync(prompt, options, token);
     }
 
-    private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token)
+    private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token, out CompletionUsage completionUsage)
     {
         string prompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
         int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
@@ -594,10 +605,12 @@ public sealed class SearchClient : ISearchClient
             TokenSelectionBiases = this._config.TokenSelectionBiases,
         };
 
+        var promptTokens = this._textGenerator.CountTokens(prompt);
+        completionUsage = new CompletionUsage(promptTokens: promptTokens, totalTokens: promptTokens);
         if (this._log.IsEnabled(LogLevel.Debug))
         {
             this._log.LogDebug("Running RAG prompt, size: {0} tokens, requesting max {1} tokens",
-                this._textGenerator.CountTokens(prompt),
+                promptTokens,
                 this._config.AnswerTokens);
         }
 
