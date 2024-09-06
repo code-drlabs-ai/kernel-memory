@@ -51,11 +51,11 @@ internal static class Program
     {
         // *************************** CONFIG WIZARD ***************************
 
-        // Run `dotnet run setup` to run this code and setup the service
-        if (new[] { "setup", "-setup", "config" }.Contains(args.FirstOrDefault(), StringComparer.OrdinalIgnoreCase))
-        {
-            InteractiveSetup.Main.InteractiveSetup(args.Skip(1).ToArray());
-        }
+        //// Run `dotnet run setup` to run this code and setup the service
+        //if (new[] { "setup", "-setup", "config" }.Contains(args.FirstOrDefault(), StringComparer.OrdinalIgnoreCase))
+        //{
+        //    InteractiveSetup.Main.InteractiveSetup(args.Skip(1).ToArray());
+        //}
 
         // *************************** APP BUILD *******************************
 

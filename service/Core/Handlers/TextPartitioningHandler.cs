@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.KernelMemory.AI.OpenAI;
+using Microsoft.KernelMemory.AI.AzureOpenAI;
+
+// using Microsoft.KernelMemory.AI.OpenAI;
 using Microsoft.KernelMemory.Configuration;
 using Microsoft.KernelMemory.Context;
 using Microsoft.KernelMemory.DataFormats.Text;

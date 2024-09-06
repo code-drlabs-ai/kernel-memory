@@ -43,9 +43,6 @@
             Main.InteractiveSetup(cfgService: true);
         }
     -->
-    <ItemGroup>
-        <ProjectReference Include="..\..\tools\InteractiveSetup\InteractiveSetup.csproj" />
-    </ItemGroup>
 
     <ItemGroup>
         <None Remove="setup.sh" />

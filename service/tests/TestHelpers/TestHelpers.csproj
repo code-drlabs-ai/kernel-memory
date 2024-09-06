@@ -15,7 +15,6 @@
         <ProjectReference Include="..\..\Core\Core.csproj" />
         <ProjectReference Include="..\..\..\clients\dotnet\SemanticKernelPlugin\SemanticKernelPlugin.csproj" />
         <ProjectReference Include="..\..\..\clients\dotnet\WebClient\WebClient.csproj" />
-        <ProjectReference Include="..\..\..\extensions\LlamaSharp\LlamaSharp\LlamaSharp.csproj" />
     </ItemGroup>
 
     <ItemGroup>

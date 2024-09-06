@@ -43,10 +43,11 @@ public static class Main
             OCRTypeSetup(ctx);
             AzureAIDocIntel.Setup(ctx);
 
-            // Embedding generation
-            EmbeddingGeneratorSetup(ctx);
-            AzureOpenAIEmbedding.Setup(ctx);
-            OpenAI.Setup(ctx);
+            //Deepak
+            //// Embedding generation
+            //EmbeddingGeneratorSetup(ctx);
+            //AzureOpenAIEmbedding.Setup(ctx);
+            //OpenAI.Setup(ctx);
 
             // Memory DB
             MemoryDbTypeSetup(ctx);
@@ -57,11 +58,12 @@ public static class Main
             Redis.Setup(ctx);
             SimpleVectorDb.Setup(ctx);
 
-            // Text generation
-            TextGeneratorTypeSetup(ctx);
-            AzureOpenAIText.Setup(ctx);
-            OpenAI.Setup(ctx);
-            LlamaSharp.Setup(ctx);
+            //Deepak
+            //// Text generation
+            //TextGeneratorTypeSetup(ctx);
+            //AzureOpenAIText.Setup(ctx);
+            //OpenAI.Setup(ctx);
+            //LlamaSharp.Setup(ctx);
 
             Logger.Setup();
 
@@ -119,9 +121,10 @@ public static class Main
                     MongoDbAtlasMemoryDb.Setup(ctx, true);
                     break;
 
-                case string x when x.Equals("OpenAI", StringComparison.OrdinalIgnoreCase):
-                    OpenAI.Setup(ctx, true);
-                    break;
+                //Deepak
+                //case string x when x.Equals("OpenAI", StringComparison.OrdinalIgnoreCase):
+                //    OpenAI.Setup(ctx, true);
+                //    break;
 
                 case string x when x.Equals("Postgres", StringComparison.OrdinalIgnoreCase):
                     Services.Postgres.Setup(ctx, true);

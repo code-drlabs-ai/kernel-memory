@@ -15,6 +15,7 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.KernelMemory.AI;
 using Microsoft.KernelMemory.Diagnostics;
 using Microsoft.KernelMemory.DocumentStorage;
@@ -34,6 +35,7 @@ public class AzureAISearchMemory : IMemoryDb, IMemoryDbUpsertBatch
     private readonly ITextEmbeddingGenerator _embeddingGenerator;
     private readonly ILogger<AzureAISearchMemory> _log;
     private readonly bool _useHybridSearch;
+    private const string SemanticSearchConfigName = "semantic-config";
 
     /// <summary>
     /// Create a new instance
@@ -171,32 +173,54 @@ public class AzureAISearchMemory : IMemoryDb, IMemoryDbUpsertBatch
     {
         var client = this.GetSearchClient(index);
 
-        Embedding textEmbedding = await this._embeddingGenerator.GenerateEmbeddingAsync(text, cancellationToken).ConfigureAwait(false);
-        VectorizedQuery vectorQuery = new(textEmbedding.Data)
-        {
-            Fields = { AzureAISearchMemoryRecord.VectorField },
-            // Exhaustive search is a brute force comparison across all vectors,
-            // ignoring the index, which can be much slower once the index contains a lot of data.
-            // TODO: allow clients to manage this value either at configuration or run time.
-            Exhaustive = false
-        };
+        //Embedding textEmbedding = await this._embeddingGenerator.GenerateEmbeddingAsync(text, cancellationToken).ConfigureAwait(false);
+        //VectorizedQuery vectorQuery = new(textEmbedding.Data)
+        //{
+        //    Fields = { AzureAISearchMemoryRecord.VectorField },
+        //    // Exhaustive search is a brute force comparison across all vectors,
+        //    // ignoring the index, which can be much slower once the index contains a lot of data.
+        //    // TODO: allow clients to manage this value either at configuration or run time.
+        //    Exhaustive = false
+        //};
+
+        //SearchOptions options = new()
+        //{
+        //    VectorSearch = new()
+        //    {
+        //        Queries = { vectorQuery },
+        //        // Default, applies the vector query AFTER the search filter
+        //        FilterMode = VectorFilterMode.PreFilter
+        //    }
+        //};
 
         SearchOptions options = new()
         {
             VectorSearch = new()
             {
-                Queries = { vectorQuery },
-                // Default, applies the vector query AFTER the search filter
-                FilterMode = VectorFilterMode.PreFilter
+                Queries =
+                {
+                    new VectorizableTextQuery(text: text)
+                    {
+                        // KNearestNeighborsCount = limit,
+                        Fields = { AzureAISearchMemoryRecord.VectorField },
+                        Exhaustive = false
+                    }
+                }
             }
         };
 
         if (limit > 0)
         {
-            vectorQuery.KNearestNeighborsCount = limit;
+            options.VectorSearch.Queries[0].KNearestNeighborsCount = limit;
             options.Size = limit;
             this._log.LogDebug("KNearestNeighborsCount and max results: {0}", limit);
         }
+
+        options.QueryType = SearchQueryType.Semantic;
+        options.SemanticSearch = new SemanticSearchOptions
+        {
+            SemanticConfigurationName = SemanticSearchConfigName
+        };
 
         // Remove empty filters
         filters = filters?.Where(f => !f.IsEmpty()).ToList();
