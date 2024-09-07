@@ -17,7 +17,6 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" />
-        <PackageReference Include="Microsoft.KernelMemory.MemoryDb.Qdrant" />
         <PackageReference Include="Swashbuckle.AspNetCore" />
     </ItemGroup>
 

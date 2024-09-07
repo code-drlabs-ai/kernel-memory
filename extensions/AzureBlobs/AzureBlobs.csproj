@@ -19,11 +19,17 @@
 
     <PropertyGroup>
         <IsPackable>true</IsPackable>
-        <PackageId>Microsoft.KernelMemory.DocumentStorage.AzureBlobs</PackageId>
+        <PackageId>DRLabs.Microsoft.KernelMemory.DocumentStorage.AzureBlobs</PackageId>
         <Product>Azure Blob Storage for Kernel Memory document storage</Product>
         <Description>Azure Blob Storage adapter allowing Kernel Memory to upload documents and maintain their state in Azure Blobs</Description>
         <PackageTags>Copilot, Plugin, Memory, RAG, Kernel Memory, Azure Blob, Semantic Memory, Episodic Memory, Declarative Memory, AI, Artificial Intelligence, Embeddings, Vector DB, Vector Search, Memory DB, ETL</PackageTags>
         <DocumentationFile>bin/$(Configuration)/$(TargetFramework)/$(AssemblyName).xml</DocumentationFile>
+        <Version>0.71.3</Version>
+        <Authors>DRLabs AI</Authors>
+        <Company>DRLabs AI</Company>
+        <Copyright>© DRLabs AI. All rights reserved.</Copyright>
+        <PackageProjectUrl>https://github.com/code-drlabs-ai/kernel-memory</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/code-drlabs-ai/kernel-memory</RepositoryUrl>
     </PropertyGroup>
 
     <ItemGroup>

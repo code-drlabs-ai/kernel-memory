@@ -12,8 +12,4 @@
         <NoWarn>$(NoWarn);KMEXP03;</NoWarn>
     </PropertyGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\..\..\service\tests\TestHelpers\TestHelpers.csproj" />
-    </ItemGroup>
-
 </Project>

@@ -7,10 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.KernelMemory.AI;
 using Microsoft.KernelMemory.AI.AzureOpenAI;
 using Microsoft.KernelMemory.DocumentStorage.DevTools;
-using Microsoft.KernelMemory.MemoryDb.SQLServer;
 using Microsoft.KernelMemory.MemoryStorage;
 using Microsoft.KernelMemory.MemoryStorage.DevTools;
-using Microsoft.KernelMemory.MongoDbAtlas;
 using Microsoft.KernelMemory.Pipeline.Queue.DevTools;
 
 namespace Microsoft.KernelMemory.Service;
@@ -134,11 +132,11 @@ internal sealed class ServiceConfiguration
                                                                  ?? this.GetServiceConfig<AzureQueuesConfig>("AzureQueue"));
                     break;
 
-                case string y when y.Equals("RabbitMQ", StringComparison.OrdinalIgnoreCase):
-                    // Check 2 keys for backward compatibility
-                    builder.Services.AddRabbitMQOrchestration(this.GetServiceConfig<RabbitMqConfig>("RabbitMQ")
-                                                              ?? this.GetServiceConfig<RabbitMqConfig>("RabbitMq"));
-                    break;
+                //case string y when y.Equals("RabbitMQ", StringComparison.OrdinalIgnoreCase):
+                //    // Check 2 keys for backward compatibility
+                //    builder.Services.AddRabbitMQOrchestration(this.GetServiceConfig<RabbitMqConfig>("RabbitMQ")
+                //                                              ?? this.GetServiceConfig<RabbitMqConfig>("RabbitMq"));
+                //    break;
 
                 case string y when y.Equals("SimpleQueues", StringComparison.OrdinalIgnoreCase):
                     builder.Services.AddSimpleQueues(this.GetServiceConfig<SimpleQueuesConfig>("SimpleQueues"));
@@ -162,13 +160,13 @@ internal sealed class ServiceConfiguration
                                                                 ?? this.GetServiceConfig<AzureBlobsConfig>("AzureBlob"));
                 break;
 
-            case string x when x.Equals("AWSS3", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddAWSS3AsDocumentStorage(this.GetServiceConfig<AWSS3Config>("AWSS3"));
-                break;
+            //case string x when x.Equals("AWSS3", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddAWSS3AsDocumentStorage(this.GetServiceConfig<AWSS3Config>("AWSS3"));
+            //    break;
 
-            case string x when x.Equals("MongoDbAtlas", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddMongoDbAtlasAsDocumentStorage(this.GetServiceConfig<MongoDbAtlasConfig>("MongoDbAtlas"));
-                break;
+            //case string x when x.Equals("MongoDbAtlas", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddMongoDbAtlasAsDocumentStorage(this.GetServiceConfig<MongoDbAtlasConfig>("MongoDbAtlas"));
+            //    break;
 
             case string x when x.Equals("SimpleFileStorage", StringComparison.OrdinalIgnoreCase):
                 builder.Services.AddSimpleFileStorageAsDocumentStorage(this.GetServiceConfig<SimpleFileStorageConfig>("SimpleFileStorage"));
@@ -261,77 +259,77 @@ internal sealed class ServiceConfiguration
                     break;
                 }
 
-                case string x when x.Equals("Elasticsearch", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddElasticsearchAsMemoryDb(this.GetServiceConfig<ElasticsearchConfig>("Elasticsearch"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("Elasticsearch", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddElasticsearchAsMemoryDb(this.GetServiceConfig<ElasticsearchConfig>("Elasticsearch"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
 
-                case string x when x.Equals("MongoDbAtlas", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddMongoDbAtlasAsMemoryDb(this.GetServiceConfig<MongoDbAtlasConfig>("MongoDbAtlas"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("MongoDbAtlas", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddMongoDbAtlasAsMemoryDb(this.GetServiceConfig<MongoDbAtlasConfig>("MongoDbAtlas"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
 
-                case string x when x.Equals("Postgres", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddPostgresAsMemoryDb(this.GetServiceConfig<PostgresConfig>("Postgres"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("Postgres", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddPostgresAsMemoryDb(this.GetServiceConfig<PostgresConfig>("Postgres"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
 
-                case string x when x.Equals("Qdrant", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddQdrantAsMemoryDb(this.GetServiceConfig<QdrantConfig>("Qdrant"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("Qdrant", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddQdrantAsMemoryDb(this.GetServiceConfig<QdrantConfig>("Qdrant"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
 
-                case string x when x.Equals("Redis", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddRedisAsMemoryDb(this.GetServiceConfig<RedisConfig>("Redis"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("Redis", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddRedisAsMemoryDb(this.GetServiceConfig<RedisConfig>("Redis"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
 
-                case string x when x.Equals("SimpleVectorDb", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddSimpleVectorDbAsMemoryDb(this.GetServiceConfig<SimpleVectorDbConfig>("SimpleVectorDb"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("SimpleVectorDb", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddSimpleVectorDbAsMemoryDb(this.GetServiceConfig<SimpleVectorDbConfig>("SimpleVectorDb"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
 
-                case string x when x.Equals("SimpleTextDb", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddSimpleTextDbAsMemoryDb(this.GetServiceConfig<SimpleTextDbConfig>("SimpleTextDb"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("SimpleTextDb", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddSimpleTextDbAsMemoryDb(this.GetServiceConfig<SimpleTextDbConfig>("SimpleTextDb"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
 
-                case string x when x.Equals("SqlServer", StringComparison.OrdinalIgnoreCase):
-                {
-                    var instance = this.GetServiceInstance<IMemoryDb>(builder,
-                        s => s.AddSqlServerAsMemoryDb(this.GetServiceConfig<SqlServerConfig>("SqlServer"))
-                    );
-                    builder.AddIngestionMemoryDb(instance);
-                    break;
-                }
+                //case string x when x.Equals("SqlServer", StringComparison.OrdinalIgnoreCase):
+                //{
+                //    var instance = this.GetServiceInstance<IMemoryDb>(builder,
+                //        s => s.AddSqlServerAsMemoryDb(this.GetServiceConfig<SqlServerConfig>("SqlServer"))
+                //    );
+                //    builder.AddIngestionMemoryDb(instance);
+                //    break;
+                //}
             }
         }
     }
@@ -375,37 +373,37 @@ internal sealed class ServiceConfiguration
                 builder.Services.AddAzureAISearchAsMemoryDb(this.GetServiceConfig<AzureAISearchConfig>("AzureAISearch"));
                 break;
 
-            case string x when x.Equals("Elasticsearch", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddElasticsearchAsMemoryDb(this.GetServiceConfig<ElasticsearchConfig>("Elasticsearch"));
-                break;
+            //case string x when x.Equals("Elasticsearch", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddElasticsearchAsMemoryDb(this.GetServiceConfig<ElasticsearchConfig>("Elasticsearch"));
+            //    break;
 
-            case string x when x.Equals("MongoDbAtlas", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddMongoDbAtlasAsMemoryDb(this.GetServiceConfig<MongoDbAtlasConfig>("MongoDbAtlas"));
-                break;
+            //case string x when x.Equals("MongoDbAtlas", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddMongoDbAtlasAsMemoryDb(this.GetServiceConfig<MongoDbAtlasConfig>("MongoDbAtlas"));
+            //    break;
 
-            case string x when x.Equals("Postgres", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddPostgresAsMemoryDb(this.GetServiceConfig<PostgresConfig>("Postgres"));
-                break;
+            //case string x when x.Equals("Postgres", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddPostgresAsMemoryDb(this.GetServiceConfig<PostgresConfig>("Postgres"));
+            //    break;
 
-            case string x when x.Equals("Qdrant", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddQdrantAsMemoryDb(this.GetServiceConfig<QdrantConfig>("Qdrant"));
-                break;
+            //case string x when x.Equals("Qdrant", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddQdrantAsMemoryDb(this.GetServiceConfig<QdrantConfig>("Qdrant"));
+            //    break;
 
-            case string x when x.Equals("Redis", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddRedisAsMemoryDb(this.GetServiceConfig<RedisConfig>("Redis"));
-                break;
+            //case string x when x.Equals("Redis", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddRedisAsMemoryDb(this.GetServiceConfig<RedisConfig>("Redis"));
+            //    break;
 
-            case string x when x.Equals("SimpleVectorDb", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddSimpleVectorDbAsMemoryDb(this.GetServiceConfig<SimpleVectorDbConfig>("SimpleVectorDb"));
-                break;
+            //case string x when x.Equals("SimpleVectorDb", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddSimpleVectorDbAsMemoryDb(this.GetServiceConfig<SimpleVectorDbConfig>("SimpleVectorDb"));
+            //    break;
 
-            case string x when x.Equals("SimpleTextDb", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddSimpleTextDbAsMemoryDb(this.GetServiceConfig<SimpleTextDbConfig>("SimpleTextDb"));
-                break;
+            //case string x when x.Equals("SimpleTextDb", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddSimpleTextDbAsMemoryDb(this.GetServiceConfig<SimpleTextDbConfig>("SimpleTextDb"));
+            //    break;
 
-            case string x when x.Equals("SqlServer", StringComparison.OrdinalIgnoreCase):
-                builder.Services.AddSqlServerAsMemoryDb(this.GetServiceConfig<SqlServerConfig>("SqlServer"));
-                break;
+            //case string x when x.Equals("SqlServer", StringComparison.OrdinalIgnoreCase):
+            //    builder.Services.AddSqlServerAsMemoryDb(this.GetServiceConfig<SqlServerConfig>("SqlServer"));
+            //    break;
 
             default:
                 // NOOP - allow custom implementations, via WithCustomMemoryDb()
