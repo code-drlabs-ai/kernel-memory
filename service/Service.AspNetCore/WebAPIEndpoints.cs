@@ -92,7 +92,7 @@ public static class WebAPIEndpoints
                 {
                     return Results.Problem(title: "Document upload failed", detail: e.Message, statusCode: 503);
                 }
-            })
+            })            
             .Produces<UploadAccepted>(StatusCodes.Status202Accepted)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
@@ -100,6 +100,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status503ServiceUnavailable);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
 
     public static void AddGetIndexesEndpoint(
@@ -132,6 +134,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
 
     public static void AddDeleteIndexesEndpoint(
@@ -164,6 +168,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
 
     public static void AddDeleteDocumentsEndpoint(
@@ -200,6 +206,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
 
     public static void AddAskEndpoint(
@@ -235,6 +243,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
     public static void AddAskChunkEndpoint(
         this IEndpointRouteBuilder builder, string apiPrefix = "/", IEndpointFilter? authFilter = null)
@@ -287,6 +297,8 @@ public static class WebAPIEndpoints
             .RequireCors("KM-CORS");
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
     public static void AddSearchEndpoint(
         this IEndpointRouteBuilder builder, string apiPrefix = "/", IEndpointFilter? authFilter = null)
@@ -322,6 +334,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
 
     public static void AddUploadStatusEndpoint(
@@ -367,6 +381,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
 
     public static void AddGetDownloadEndpoint(this IEndpointRouteBuilder builder, string apiPrefix = "/", IEndpointFilter? authFilter = null)
@@ -448,6 +464,8 @@ public static class WebAPIEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status503ServiceUnavailable);
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
+
+        route.RequireAuthorization();
     }
 
 #pragma warning disable CA1812 // used by logger, can't be static

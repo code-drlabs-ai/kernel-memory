@@ -3,12 +3,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.KernelMemory.AI;
 using Microsoft.KernelMemory.Configuration;
 using Microsoft.KernelMemory.Diagnostics;
@@ -97,6 +99,23 @@ internal static class Program
                 memoryType = ((memory is MemoryServerless) ? "Sync - " : "Async - ") + memory.GetType().FullName;
             });
 
+        appBuilder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.Authority = $"https://login.microsoftonline.com/{config.ServiceAuthorization.AzureAD.TenantId}/v2.0";
+                options.Audience = config.ServiceAuthorization.AzureAD.ClientId;
+            });
+
+        // Add authorization with custom policies
+        appBuilder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy("DefaultPolicy", policy =>
+            {
+                policy.RequireAuthenticatedUser();
+            });
+        });
+
+
         // CORS
         bool enableCORS = true;
         const string CORSPolicyName = "KM-CORS";
@@ -125,6 +144,9 @@ internal static class Program
         {
             if (enableCORS) { app.UseCors(CORSPolicyName); }
 
+            app.UseAuthentication();
+            app.UseAuthorization();
+
             app.UseSwagger(config);
             var authFilter = new HttpAuthEndpointFilter(config.ServiceAuthorization);
             app.MapGet("/", () => Results.Ok("Ingestion service is running. " +
@@ -145,7 +167,7 @@ internal static class Program
                 .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
                 .Produces<ProblemDetails>(StatusCodes.Status403Forbidden);
 
-            if (config.ServiceAuthorization.Enabled && config.ServiceAuthorization.AccessKey1 == config.ServiceAuthorization.AccessKey2)
+            if (config.ServiceAuthorization.Enabled && config.ServiceAuthorization.AuthenticationType == "APIKey" && config.ServiceAuthorization.AccessKey1 == config.ServiceAuthorization.AccessKey2)
             {
                 app.Logger.LogError("KM Web Service: Access keys 1 and 2 have the same value. Keys should be different to allow rotation.");
             }
