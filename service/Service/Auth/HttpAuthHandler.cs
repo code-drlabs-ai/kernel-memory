@@ -10,6 +10,7 @@ namespace Microsoft.KernelMemory.Service;
 public sealed class HttpAuthEndpointFilter : IEndpointFilter
 {
     private readonly ServiceAuthorizationConfig _config;
+    public const string ApikeyAuthType = "APIKey";
 
     public HttpAuthEndpointFilter(ServiceAuthorizationConfig config)
     {
@@ -21,7 +22,7 @@ public sealed class HttpAuthEndpointFilter : IEndpointFilter
         EndpointFilterInvocationContext context,
         EndpointFilterDelegate next)
     {
-        if (this._config.Enabled)
+        if (this._config.Enabled && this._config.AuthenticationType == ApikeyAuthType)
         {
             if (!context.HttpContext.Request.Headers.TryGetValue(this._config.HttpHeaderName, out var apiKey))
             {

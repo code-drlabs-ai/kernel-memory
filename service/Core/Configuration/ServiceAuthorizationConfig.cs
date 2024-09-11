@@ -7,6 +7,7 @@ namespace Microsoft.KernelMemory.Configuration;
 public class ServiceAuthorizationConfig
 {
     public const string APIKeyAuthType = "APIKey";
+    public const string AzureADAuthType = "AzureAD";
     public const int AccessKeyMinLength = 32;
 
     public static readonly char[] ValidChars =
@@ -22,7 +23,7 @@ public class ServiceAuthorizationConfig
     public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// Currently "APIKey" is the only type supported
+    /// Currently "APIKey","AzureAD" are the only types supported
     /// </summary>
     public string AuthenticationType { get; set; } = APIKeyAuthType;
 
@@ -43,6 +44,11 @@ public class ServiceAuthorizationConfig
     /// </summary>
     public string AccessKey2 { get; set; } = "";
 
+    /// <summary>
+    /// Azure AD configuration for KM Service authorization
+    /// </summary>
+    public AzureAD AzureAD { get; set; } = new AzureAD();
+
     public void Validate()
     {
         if (!this.Enabled)
@@ -50,18 +56,20 @@ public class ServiceAuthorizationConfig
             return;
         }
 
-        if (this.AuthenticationType != APIKeyAuthType)
+        if (this.AuthenticationType != APIKeyAuthType && this.AuthenticationType != AzureADAuthType)
         {
             throw new ConfigurationException($"KM Web Service: authorization type '{this.AuthenticationType}' is not supported. Please use '{APIKeyAuthType}'.");
         }
-
-        if (string.IsNullOrWhiteSpace(this.HttpHeaderName))
+        if (this.AuthenticationType == APIKeyAuthType)
         {
-            throw new ConfigurationException("KM Web Service: the HTTP header name cannot be empty");
-        }
+            if (string.IsNullOrWhiteSpace(this.HttpHeaderName))
+            {
+                throw new ConfigurationException("KM Web Service: the HTTP header name cannot be empty");
+            }
 
-        ValidateAccessKey(this.AccessKey1, 1);
-        ValidateAccessKey(this.AccessKey2, 2);
+            ValidateAccessKey(this.AccessKey1, 1);
+            ValidateAccessKey(this.AccessKey2, 2);
+        }
     }
 
     private static void ValidateAccessKey(string key, int keyNumber)
@@ -86,4 +94,12 @@ public class ServiceAuthorizationConfig
     {
         return char.IsLetterOrDigit(c) || ValidChars.Contains(c);
     }
+}
+
+public class AzureAD
+{
+    public string? Instance { get; set; }
+    public string? Domain { get; set; }
+    public string? TenantId { get; set; }
+    public string? ClientId { get; set; }
 }
