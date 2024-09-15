@@ -47,7 +47,7 @@ public class ServiceAuthorizationConfig
     /// <summary>
     /// Azure AD configuration for KM Service authorization
     /// </summary>
-    public AzureAD AzureAD { get; set; } = new AzureAD();
+    public AzureAD? AzureAD { get; set; } = new AzureAD();
 
     public void Validate()
     {
@@ -102,4 +102,5 @@ public class AzureAD
     public string? Domain { get; set; }
     public string? TenantId { get; set; }
     public string? ClientId { get; set; }
+    public string? Scope { get; set; }
 }

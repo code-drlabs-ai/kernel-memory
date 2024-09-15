@@ -101,7 +101,7 @@ public static class WebAPIEndpoints
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
 
-        route.RequireAuthorization();
+        //route.RequireAuthorization();
     }
 
     public static void AddGetIndexesEndpoint(

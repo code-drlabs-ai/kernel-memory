@@ -111,7 +111,7 @@ internal static class Program
         {
             options.AddPolicy("DefaultPolicy", policy =>
             {
-                policy.RequireAuthenticatedUser();
+                policy.RequireClaim("scope", config.ServiceAuthorization.AzureAD.Scope);
             });
         });
 
