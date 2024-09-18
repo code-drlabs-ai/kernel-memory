@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.KernelMemory.Diagnostics;
+using Microsoft.KernelMemory.Enums;
 using Microsoft.KernelMemory.Models;
 
 namespace Microsoft.KernelMemory.AI;
@@ -50,6 +51,16 @@ public class NoTextGenerator : ITextGenerator
     }
 
     public IAsyncEnumerable<TextGenerationResult> GenerateTextChunkAsync(string prompt, TextGenerationOptions options, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IAsyncEnumerable<string> CompleteChatAsync(List<PromptSegment> promptSegments, TextGenerationOptions options, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IAsyncEnumerable<TextGenerationResult> CompleteChatChunkAsync(List<PromptSegment> promptSegments, TextGenerationOptions options, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }

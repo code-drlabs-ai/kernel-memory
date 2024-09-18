@@ -10,6 +10,7 @@ using Microsoft.KernelMemory.AI.AzureOpenAI;
 
 // using Microsoft.KernelMemory.AI.OpenAI;
 using Microsoft.KernelMemory.Diagnostics;
+using Microsoft.KernelMemory.Enums;
 using Microsoft.KernelMemory.Models;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.TextGeneration;
@@ -100,6 +101,16 @@ internal sealed class SemanticKernelTextGenerator : ITextGenerator
     }
 
     public IAsyncEnumerable<TextGenerationResult> GenerateTextChunkAsync(string prompt, TextGenerationOptions options, CancellationToken cancellationToken = default)
+    {
+        throw new System.NotImplementedException();
+    }
+
+    public IAsyncEnumerable<string> CompleteChatAsync(List<PromptSegment> promptSegments, TextGenerationOptions options, CancellationToken cancellationToken = default)
+    {
+        throw new System.NotImplementedException();
+    }
+
+    public IAsyncEnumerable<TextGenerationResult> CompleteChatChunkAsync(List<PromptSegment> promptSegments, TextGenerationOptions options, CancellationToken cancellationToken = default)
     {
         throw new System.NotImplementedException();
     }

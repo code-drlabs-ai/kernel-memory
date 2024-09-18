@@ -13,11 +13,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.KernelMemory.Diagnostics;
 using Microsoft.KernelMemory.Models;
 using Azure.AI.OpenAI;
-using Azure;
 using OpenAI.Chat;
-using static System.Net.Mime.MediaTypeNames;
-using System.Text.Json;
-using System.Threading.Tasks;
+using Microsoft.KernelMemory.Enums;
 
 namespace Microsoft.KernelMemory.AI.AzureOpenAI;
 
@@ -118,89 +115,144 @@ public sealed class AzureOpenAITextGenerator : ITextGenerator
     }
 
     /// <inheritdoc/>
+    public async IAsyncEnumerable<string> CompleteChatAsync(
+        List<PromptSegment> promptSegments,
+        TextGenerationOptions options,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        this._log.LogTrace("Sending chat message generation request, deployment '{0}'", this._deployment);
+
+        var openaiOptions = new ChatCompletionOptions
+        {
+            //DeploymentName = this._deployment,
+            MaxTokens = options.MaxTokens,
+            Temperature = (float)options.Temperature,
+            //NucleusSamplingFactor = (float)options.NucleusSampling,
+            FrequencyPenalty = (float)options.FrequencyPenalty,
+            PresencePenalty = (float)options.PresencePenalty,
+            // ChoiceCount = 1,
+        };
+
+        if (options.StopSequences is { Count: > 0 })
+        {
+            foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
+        }
+
+        //if (options.TokenSelectionBiases is { Count: > 0 })
+        //{
+        //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
+        //}
+
+        IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(GetChatMessages(promptSegments), openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
+        //{
+        while (await response.MoveNextAsync().ConfigureAwait(false))
+        {
+            foreach (var text in response.Current.ContentUpdate.AsEnumerable())
+            {
+                yield return text.Text;
+            }
+        }
+    }
+
+    public async IAsyncEnumerable<TextGenerationResult> CompleteChatChunkAsync(
+        List<PromptSegment> promptSegments,
+        TextGenerationOptions options,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        this._log.LogTrace("Sending chat message generation request, deployment '{0}'", this._deployment);
+
+        var openaiOptions = new ChatCompletionOptions
+        {
+            //DeploymentName = this._deployment,
+            MaxTokens = options.MaxTokens,
+            Temperature = (float)options.Temperature,
+            //NucleusSamplingFactor = (float)options.NucleusSampling,
+            FrequencyPenalty = (float)options.FrequencyPenalty,
+            PresencePenalty = (float)options.PresencePenalty,
+            IncludeLogProbabilities = true,
+            TopP = 1,
+            //IncludeCompletionUsage = true
+            //StreamOptions = new { IncludeUsage = true },
+            //ChoicesPerPrompt = 1,
+        };
+
+        if (options.StopSequences is { Count: > 0 })
+        {
+            foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
+        }
+
+        //if (options.TokenSelectionBiases is { Count: > 0 })
+        //{
+        //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
+        //}
+
+        IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(GetChatMessages(promptSegments), openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
+        //{
+        await response.MoveNextAsync().ConfigureAwait(false);
+        StreamingChatCompletionUpdate? currentUpdate = response.Current;
+        while (currentUpdate != null)
+        {
+            foreach (var text in currentUpdate.ContentUpdate.AsEnumerable())
+            {
+                if (currentUpdate.Usage != null)
+                {
+                    yield return new TextGenerationResult(text.Text, currentUpdate.Usage.OutputTokens, currentUpdate.Usage.InputTokens, currentUpdate.Usage.TotalTokens);
+                }
+                else
+                {
+                    yield return new TextGenerationResult(text.Text, 0, 0, 0);
+                }
+            }
+            if (await response.MoveNextAsync().ConfigureAwait(false))
+            {
+                currentUpdate = response.Current;
+            }
+            else
+            {
+                currentUpdate = null;
+            }
+        }
+    }
+
     public async IAsyncEnumerable<string> GenerateTextAsync(
         string prompt,
         TextGenerationOptions options,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (this._useTextCompletionProtocol)
+        this._log.LogTrace("Sending chat message generation request, deployment '{0}'", this._deployment);
+
+        var openaiOptions = new ChatCompletionOptions
         {
-            this._log.LogTrace("Sending text generation request, deployment '{0}'", this._deployment);
+            //DeploymentName = this._deployment,
+            MaxTokens = options.MaxTokens,
+            Temperature = (float)options.Temperature,
+            //NucleusSamplingFactor = (float)options.NucleusSampling,
+            FrequencyPenalty = (float)options.FrequencyPenalty,
+            PresencePenalty = (float)options.PresencePenalty,
+            // ChoiceCount = 1,
+        };
 
-            var openaiOptions = new ChatCompletionOptions
-            {
-                MaxTokens = options.MaxTokens,
-                Temperature = (float)options.Temperature,
-                //NucleusSamplingFactor = (float)options.NucleusSampling,
-                FrequencyPenalty = (float)options.FrequencyPenalty,
-                PresencePenalty = (float)options.PresencePenalty,
-                //ChoicesPerPrompt = 1,
-            };
-
-            if (options.StopSequences is { Count: > 0 })
-            {
-                foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
-            }
-
-            //if (options.TokenSelectionBiases is { Count: > 0 })
-            //{
-            //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
-            //}
-
-            var messages = new List<ChatMessage>();
-            messages.Add(new SystemChatMessage(prompt));
-
-            IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
-            //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
-            //{
-            while (await response.MoveNextAsync().ConfigureAwait(false))
-            {
-                foreach (var text in response.Current.ContentUpdate.AsEnumerable())
-                {
-                    yield return text.Text;
-                }
-            }
-            //}
+        if (options.StopSequences is { Count: > 0 })
+        {
+            foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
         }
-        else
+
+        //if (options.TokenSelectionBiases is { Count: > 0 })
+        //{
+        //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
+        //}
+
+        IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(new List<ChatMessage>() { new SystemChatMessage(prompt) }, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
+        //{
+        while (await response.MoveNextAsync().ConfigureAwait(false))
         {
-            this._log.LogTrace("Sending chat message generation request, deployment '{0}'", this._deployment);
-
-            var openaiOptions = new ChatCompletionOptions
+            foreach (var text in response.Current.ContentUpdate.AsEnumerable())
             {
-                //DeploymentName = this._deployment,
-                MaxTokens = options.MaxTokens,
-                Temperature = (float)options.Temperature,
-                //NucleusSamplingFactor = (float)options.NucleusSampling,
-                FrequencyPenalty = (float)options.FrequencyPenalty,
-                PresencePenalty = (float)options.PresencePenalty,
-                // ChoiceCount = 1,
-            };
-
-            if (options.StopSequences is { Count: > 0 })
-            {
-                foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
+                yield return text.Text;
             }
-
-            //if (options.TokenSelectionBiases is { Count: > 0 })
-            //{
-            //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
-            //}
-
-            var messages = new List<ChatMessage>();
-            messages.Add(new SystemChatMessage(prompt));
-
-            IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
-            //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
-            //{
-            while (await response.MoveNextAsync().ConfigureAwait(false))
-            {
-                foreach (var text in response.Current.ContentUpdate.AsEnumerable())
-                {
-                    yield return text.Text;
-                }
-            }
-            //}
         }
     }
 
@@ -209,108 +261,87 @@ public sealed class AzureOpenAITextGenerator : ITextGenerator
         TextGenerationOptions options,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (this._useTextCompletionProtocol)
+        this._log.LogTrace("Sending chat message generation request, deployment '{0}'", this._deployment);
+
+        var openaiOptions = new ChatCompletionOptions
         {
-            this._log.LogTrace("Sending text generation request, deployment '{0}'", this._deployment);
+            //DeploymentName = this._deployment,
+            MaxTokens = options.MaxTokens,
+            Temperature = (float)options.Temperature,
+            //NucleusSamplingFactor = (float)options.NucleusSampling,
+            FrequencyPenalty = (float)options.FrequencyPenalty,
+            PresencePenalty = (float)options.PresencePenalty,
+            IncludeLogProbabilities = true,
+            TopP = 1,
+            //IncludeCompletionUsage = true
+            //StreamOptions = new { IncludeUsage = true },
+            //ChoicesPerPrompt = 1,
+        };
 
-            var openaiOptions = new ChatCompletionOptions
+        if (options.StopSequences is { Count: > 0 })
+        {
+            foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
+        }
+
+        //if (options.TokenSelectionBiases is { Count: > 0 })
+        //{
+        //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
+        //}
+
+        IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(new List<ChatMessage>() { new SystemChatMessage(prompt) }, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
+        //{
+        await response.MoveNextAsync().ConfigureAwait(false);
+        StreamingChatCompletionUpdate? currentUpdate = response.Current;
+        while (currentUpdate != null)
+        {
+            foreach (var text in currentUpdate.ContentUpdate.AsEnumerable())
             {
-                //DeploymentName = this._deployment,
-                MaxTokens = options.MaxTokens,
-                Temperature = (float)options.Temperature,
-                //NucleusSamplingFactor = (float)options.NucleusSampling,
-                FrequencyPenalty = (float)options.FrequencyPenalty,
-                PresencePenalty = (float)options.PresencePenalty,
-                //ChoicesPerPrompt = 1,
-            };
-
-            if (options.StopSequences is { Count: > 0 })
-            {
-                foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
-            }
-
-            //if (options.TokenSelectionBiases is { Count: > 0 })
-            //{
-            //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
-            //}
-
-            var messages = new List<ChatMessage>();
-            messages.Add(new SystemChatMessage(prompt));
-
-            IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
-            //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
-            //{
-            StreamingChatCompletionUpdate? currentUpdate;
-            while (await response.MoveNextAsync().ConfigureAwait(false))
-            {
-                currentUpdate = response.Current;
-                foreach (var text in currentUpdate.ContentUpdate.AsEnumerable())
+                if (currentUpdate.Usage != null)
                 {
                     yield return new TextGenerationResult(text.Text, currentUpdate.Usage.OutputTokens, currentUpdate.Usage.InputTokens, currentUpdate.Usage.TotalTokens);
                 }
-            }
-            //}
-        }
-        else
-        {
-            this._log.LogTrace("Sending chat message generation request, deployment '{0}'", this._deployment);
-
-            var openaiOptions = new ChatCompletionOptions
-            {
-                //DeploymentName = this._deployment,
-                MaxTokens = options.MaxTokens,
-                Temperature = (float)options.Temperature,
-                //NucleusSamplingFactor = (float)options.NucleusSampling,
-                FrequencyPenalty = (float)options.FrequencyPenalty,
-                PresencePenalty = (float)options.PresencePenalty,
-                IncludeLogProbabilities = true,
-                TopP = 1,
-                //IncludeCompletionUsage = true
-                //StreamOptions = new { IncludeUsage = true },
-                //ChoicesPerPrompt = 1,
-            };
-
-            if (options.StopSequences is { Count: > 0 })
-            {
-                foreach (var s in options.StopSequences) { openaiOptions.StopSequences.Add(s); }
-            }
-
-            //if (options.TokenSelectionBiases is { Count: > 0 })
-            //{
-            //    foreach (var (token, bias) in options.TokenSelectionBiases) { openaiOptions.TokenSelectionBiases.Add(token, (int)bias); }
-            //}
-
-            var messages = new List<ChatMessage>();
-            messages.Add(new SystemChatMessage(prompt));
-
-            IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken);
-            //await using (IAsyncEnumerator<StreamingChatCompletionUpdate> response = this._client.GetChatClient(this._deployment).CompleteChatStreamingAsync(messages, openaiOptions, cancellationToken).GetAsyncEnumerator(cancellationToken))
-            //{
-            await response.MoveNextAsync().ConfigureAwait(false);
-            StreamingChatCompletionUpdate? currentUpdate = response.Current;
-            while (currentUpdate != null)
-            {
-                foreach (var text in currentUpdate.ContentUpdate.AsEnumerable())
-                {
-                    if (currentUpdate.Usage != null)
-                    {
-                        yield return new TextGenerationResult(text.Text, currentUpdate.Usage.OutputTokens, currentUpdate.Usage.InputTokens, currentUpdate.Usage.TotalTokens);
-                    }
-                    else
-                    {
-                        yield return new TextGenerationResult(text.Text, 0, 0, 0);
-                    }
-                }
-                if (await response.MoveNextAsync().ConfigureAwait(false))
-                {
-                    currentUpdate = response.Current;
-                }
                 else
                 {
-                    currentUpdate = null;
+                    yield return new TextGenerationResult(text.Text, 0, 0, 0);
                 }
             }
-            //}
+            if (await response.MoveNextAsync().ConfigureAwait(false))
+            {
+                currentUpdate = response.Current;
+            }
+            else
+            {
+                currentUpdate = null;
+            }
         }
+    }
+
+    private static List<ChatMessage> GetChatMessages(List<PromptSegment> promptSegments)
+    {
+        var messages = new List<ChatMessage>();
+        foreach (var promptSegment in promptSegments)
+        {
+            switch (promptSegment.ChatRole)
+            {
+                case ChatRoles.System:
+                {
+                    messages.Add(new SystemChatMessage(promptSegment.Message));
+                    break;
+                }
+                case ChatRoles.User:
+                {
+                    messages.Add(new UserChatMessage(promptSegment.Message));
+                    break;
+                }
+                case ChatRoles.Assistant:
+                {
+                    messages.Add(new AssistantChatMessage(promptSegment.Message));
+                    break;
+                }
+            }
+        }
+
+        return messages;
     }
 }

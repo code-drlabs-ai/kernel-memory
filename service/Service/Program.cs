@@ -99,22 +99,24 @@ internal static class Program
                 memoryType = ((memory is MemoryServerless) ? "Sync - " : "Async - ") + memory.GetType().FullName;
             });
 
-        appBuilder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.Authority = $"https://login.microsoftonline.com/{config.ServiceAuthorization.AzureAD.TenantId}/v2.0";
-                options.Audience = config.ServiceAuthorization.AzureAD.ClientId;
-            });
-
-        // Add authorization with custom policies
-        appBuilder.Services.AddAuthorization(options =>
+        if (config.ServiceAuthorization.Enabled)
         {
-            options.AddPolicy("DefaultPolicy", policy =>
-            {
-                policy.RequireClaim("scope", config.ServiceAuthorization.AzureAD.Scope);
-            });
-        });
+            //appBuilder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            //    .AddJwtBearer(options =>
+            //    {
+            //        options.Authority = $"https://login.microsoftonline.com/{config.ServiceAuthorization.AzureAD.TenantId}/v2.0";
+            //        options.Audience = config.ServiceAuthorization.AzureAD.ClientId;
+            //    });
 
+            //// Add authorization with custom policies
+            //appBuilder.Services.AddAuthorization(options =>
+            //{
+            //    options.AddPolicy("DefaultPolicy", policy =>
+            //    {
+            //        policy.RequireClaim("scope", config.ServiceAuthorization.AzureAD.Scope);
+            //    });
+            //});
+        }
 
         // CORS
         bool enableCORS = true;
@@ -144,8 +146,11 @@ internal static class Program
         {
             if (enableCORS) { app.UseCors(CORSPolicyName); }
 
-            app.UseAuthentication();
-            app.UseAuthorization();
+            if (config.ServiceAuthorization.Enabled)
+            {
+                app.UseAuthentication();
+                app.UseAuthorization();
+            }
 
             app.UseSwagger(config);
             var authFilter = new HttpAuthEndpointFilter(config.ServiceAuthorization);

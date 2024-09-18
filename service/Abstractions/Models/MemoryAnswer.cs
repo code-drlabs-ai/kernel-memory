@@ -52,6 +52,13 @@ public class MemoryAnswer
     public List<Citation> RelevantSources { get; set; } = new();
 
     /// <summary>
+    /// Final prompt for the question.
+    /// </summary>
+    [JsonPropertyName("prompt")]
+    [JsonPropertyOrder(30)]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>
     /// Token usage information about the question and answer.
     /// </summary>
     [JsonPropertyName("completionUsage")]

@@ -130,6 +130,26 @@ public static class CustomContextExtensions
         return defaultValue;
     }
 
+    public static string GetCustomRagAdditionalPromptOrDefault(this IContext? context, string defaultValue)
+    {
+        if (context.TryGetArg<string>(Constants.CustomContext.Rag.AdditionalPrompt, out var customValue))
+        {
+            return customValue;
+        }
+
+        return defaultValue;
+    }
+
+    public static List<string>? GetCustomRagChatHistoryOrDefault(this IContext? context, List<string>? defaultValue)
+    {
+        if (context.TryGetArg<List<string>>(Constants.CustomContext.Rag.ChatHistory, out var customValue))
+        {
+            return customValue;
+        }
+
+        return defaultValue;
+    }
+
     public static int GetCustomRagMaxTokensOrDefault(this IContext? context, int defaultValue)
     {
         if (context.TryGetArg<int>(Constants.CustomContext.Rag.MaxTokens, out var customValue))
@@ -139,6 +159,7 @@ public static class CustomContextExtensions
 
         return defaultValue;
     }
+
 
     public static double GetCustomRagTemperatureOrDefault(this IContext? context, double defaultValue)
     {

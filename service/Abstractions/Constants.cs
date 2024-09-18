@@ -56,6 +56,12 @@ public static class Constants
             // Used to override the RAG prompt
             public const string Prompt = "custom_rag_prompt_str";
 
+            // Used to override the RAG additional prompt
+            public const string AdditionalPrompt = "custom_rag_additional_prompt_str";
+
+            // Used to override the RAG chat history
+            public const string ChatHistory = "custom_rag_chat_history_str";
+
             // Used to override how facts are injected into RAG prompt
             public const string FactTemplate = "custom_rag_fact_template_str";
 

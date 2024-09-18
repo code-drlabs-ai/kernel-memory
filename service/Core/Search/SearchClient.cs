@@ -16,6 +16,7 @@ using Microsoft.KernelMemory.Diagnostics;
 using Microsoft.KernelMemory.MemoryStorage;
 using Microsoft.KernelMemory.Prompts;
 using Microsoft.KernelMemory.Models;
+using Microsoft.KernelMemory.Enums;
 
 namespace Microsoft.KernelMemory.Search;
 
@@ -332,14 +333,14 @@ public sealed class SearchClient : ISearchClient
         }
 
         var charsGenerated = 0;
-        CompletionUsage? completionUsage;
+        var prompt = string.Empty;
         var completeAnswer = new StringBuilder();
         var watch = new Stopwatch();
         watch.Restart();
-        await foreach (var x in this.GenerateAnswer(question, facts.ToString(), context, cancellationToken, out completionUsage).ConfigureAwait(false))
+        await foreach (var x in this.GenerateAnswer(question, facts.ToString(), context, cancellationToken, out prompt).ConfigureAwait(false))
         {
             completeAnswer.Append(x);
-            if (this._log.IsEnabled(LogLevel.Trace) && completeAnswer.Length - charsGenerated >= 30)
+            if (this._log.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Trace) && completeAnswer.Length - charsGenerated >= 30)
             {
                 charsGenerated = completeAnswer.Length;
                 this._log.LogTrace("{0} chars generated", charsGenerated);
@@ -359,9 +360,19 @@ public sealed class SearchClient : ISearchClient
         {
             this._log.LogTrace("Answer generated in {0} msecs", watch.ElapsedMilliseconds);
         }
-        answer.CompletionUsage = completionUsage;
-        answer.CompletionUsage.CompletionTokens = this._textGenerator.CountTokens(completeAnswer.ToString());
-        answer.CompletionUsage.TotalTokens = answer.CompletionUsage.PromptTokens + answer.CompletionUsage.CompletionTokens;
+
+        answer.Prompt = prompt;
+
+        // Count Prompt Tokens
+        var promptTokens = this._textGenerator.CountTokens(prompt);
+        var completionTokens = this._textGenerator.CountTokens(completeAnswer.ToString());
+        answer.CompletionUsage = new CompletionUsage(completionTokens: completionTokens, promptTokens: promptTokens, totalTokens: promptTokens + completionTokens);
+        if (this._log.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Debug))
+        {
+            this._log.LogDebug("Running RAG prompt, size: {0} tokens, requesting max {1} tokens",
+                promptTokens,
+                this._config.AnswerTokens);
+        }
 
         return answer;
     }
@@ -516,13 +527,13 @@ public sealed class SearchClient : ISearchClient
             yield break;
         }
         var charsGenerated = 0;
-        CompletionUsage? completionUsage;
+        var prompt = string.Empty;
         var completeAnswer = new StringBuilder();
-        await foreach (var x in this.GenerateAnswerChunk(question, facts.ToString(), context, cancellationToken, out completionUsage).ConfigureAwait(true))
+        await foreach (var x in this.GenerateAnswerChunk(question, facts.ToString(), context, cancellationToken, out prompt).ConfigureAwait(true))
         {
             completeAnswer.Append(x.GeneratedText);
             var text = new StringBuilder().Append(x.GeneratedText);
-            if (this._log.IsEnabled(LogLevel.Trace) && text.Length - charsGenerated >= 30)
+            if (this._log.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Trace) && text.Length - charsGenerated >= 30)
             {
                 charsGenerated = text.Length;
                 this._log.LogTrace("{0} chars generated", charsGenerated);
@@ -538,26 +549,29 @@ public sealed class SearchClient : ISearchClient
             yield return newAnswer;
         }
         answer.Result = eosToken;
-        answer.CompletionUsage = completionUsage;
-        answer.CompletionUsage.CompletionTokens = this._textGenerator.CountTokens(completeAnswer.ToString());
-        answer.CompletionUsage.TotalTokens = answer.CompletionUsage.PromptTokens + answer.CompletionUsage.CompletionTokens;
+        answer.Prompt = prompt;
+
+        // Count Prompt Tokens
+        var promptTokens = this._textGenerator.CountTokens(prompt);
+        var completionTokens = this._textGenerator.CountTokens(completeAnswer.ToString());
+        answer.CompletionUsage = new CompletionUsage(completionTokens: completionTokens, promptTokens: promptTokens, totalTokens: promptTokens + completionTokens);
+        if (this._log.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Debug))
+        {
+            this._log.LogDebug("Running RAG prompt, size: {0} tokens, requesting max {1} tokens",
+                promptTokens,
+                this._config.AnswerTokens);
+        }
+
         this._log.LogInformation("Eos token: '{0}", answer.Result);
         yield return answer;
     }
 
-    private IAsyncEnumerable<string> GenerateAnswer(string question, string facts, IContext? context, CancellationToken token, out CompletionUsage completionUsage)
+    private IAsyncEnumerable<string> GenerateAnswer(string question, string facts, IContext? context, CancellationToken token, out string prompt)
     {
-        string prompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
+        // LLM Options
         int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
         double temperature = context.GetCustomRagTemperatureOrDefault(this._config.Temperature);
         double nucleusSampling = context.GetCustomRagNucleusSamplingOrDefault(this._config.TopP);
-
-        prompt = prompt.Replace("{{$facts}}", facts.Trim(), StringComparison.OrdinalIgnoreCase);
-
-        question = question.Trim();
-        prompt = prompt.Replace("{{$input}}", question, StringComparison.OrdinalIgnoreCase);
-        prompt = prompt.Replace("{{$notFound}}", this._config.EmptyAnswer, StringComparison.OrdinalIgnoreCase);
-
         var options = new TextGenerationOptions
         {
             MaxTokens = maxTokens,
@@ -569,31 +583,82 @@ public sealed class SearchClient : ISearchClient
             TokenSelectionBiases = this._config.TokenSelectionBiases,
         };
 
-        var promptTokens = this._textGenerator.CountTokens(prompt);
-        completionUsage = new CompletionUsage(promptTokens: promptTokens, totalTokens: promptTokens);
-        if (this._log.IsEnabled(LogLevel.Debug))
-        {
-            this._log.LogDebug("Running RAG prompt, size: {0} tokens, requesting max {1} tokens",
-                promptTokens,
-                this._config.AnswerTokens);
-        }
+        // Generate Prompt
+        List<PromptSegment> promptSegments = this.GeneratePromptSegments(question, facts, context);
+        prompt = GeneratePrompt(promptSegments);
 
-        return this._textGenerator.GenerateTextAsync(prompt, options, token);
+        // Generate Answer
+        return this._textGenerator.CompleteChatAsync(promptSegments, options, token);
     }
 
-    private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token, out CompletionUsage completionUsage)
+    private static string GeneratePrompt(List<PromptSegment> promptSegments)
     {
-        string prompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
+        var promptBuilder = new StringBuilder();
+        promptBuilder.AppendJoin<string>("\r\n", promptSegments.Select(s => s.ChatRole + "__" + s.Message).ToArray());
+        var prompt = promptBuilder.ToString();
+        return prompt;
+    }
+
+    private List<PromptSegment> GeneratePromptSegments(string question, string facts, IContext? context)
+    {
+        List<PromptSegment> promptSegments = new();
+
+        // System Prompt
+        var prompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
+        prompt = prompt.Replace("{{$notFound}}", this._config.EmptyAnswer, StringComparison.OrdinalIgnoreCase);
+        promptSegments.Add(new PromptSegment(ChatRoles.System, prompt)); // "\r\n\r\n"
+        // Additional Prompt
+        var additionalPrompt = context.GetCustomRagAdditionalPromptOrDefault(string.Empty);
+        if (!string.IsNullOrEmpty(additionalPrompt))
+        {
+            promptSegments.Add(new PromptSegment(ChatRoles.System, $"Additional Instructions:\r\n{additionalPrompt}")); // "\r\n\r\n"
+        }
+        // Facts
+        if (!string.IsNullOrEmpty(facts.Trim()))
+        {
+            promptSegments.Add(new PromptSegment(ChatRoles.System, $"Facts:\r\n{facts.Trim()}"));
+        }
+        // Chat History
+        try
+        {
+            var chatHistory = context.GetCustomRagChatHistoryOrDefault(null);
+            if (chatHistory != null)
+            {
+                string[] chatSegments;
+                foreach (var chat in chatHistory)
+                {
+                    chatSegments = chat.Split("__");
+                    switch (chatSegments[0])
+                    {
+                        case "SYSTEM":
+                            promptSegments.Add(new PromptSegment(ChatRoles.System, chatSegments[1]));
+                            break;
+                        case "USER":
+                            promptSegments.Add(new PromptSegment(ChatRoles.User, chatSegments[1]));
+                            break;
+                        case "ASSISTANT":
+                            promptSegments.Add(new PromptSegment(ChatRoles.Assistant, chatSegments[1]));
+                            break;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            this._log.LogWarning("Could not parse the chat history.", ex);
+        }
+        // User Question
+        promptSegments.Add(new PromptSegment(ChatRoles.User, question.Trim()));
+
+        return promptSegments;
+    }
+
+    private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token, out string prompt)
+    {
+        // LLM Options
         int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
         double temperature = context.GetCustomRagTemperatureOrDefault(this._config.Temperature);
         double nucleusSampling = context.GetCustomRagNucleusSamplingOrDefault(this._config.TopP);
-
-        prompt = prompt.Replace("{{$facts}}", facts.Trim(), StringComparison.OrdinalIgnoreCase);
-
-        question = question.Trim();
-        prompt = prompt.Replace("{{$input}}", question, StringComparison.OrdinalIgnoreCase);
-        prompt = prompt.Replace("{{$notFound}}", this._config.EmptyAnswer, StringComparison.OrdinalIgnoreCase);
-
         var options = new TextGenerationOptions
         {
             MaxTokens = maxTokens,
@@ -605,16 +670,12 @@ public sealed class SearchClient : ISearchClient
             TokenSelectionBiases = this._config.TokenSelectionBiases,
         };
 
-        var promptTokens = this._textGenerator.CountTokens(prompt);
-        completionUsage = new CompletionUsage(promptTokens: promptTokens, totalTokens: promptTokens);
-        if (this._log.IsEnabled(LogLevel.Debug))
-        {
-            this._log.LogDebug("Running RAG prompt, size: {0} tokens, requesting max {1} tokens",
-                promptTokens,
-                this._config.AnswerTokens);
-        }
+        // Generate Prompt
+        List<PromptSegment> promptSegments = this.GeneratePromptSegments(question, facts, context);
+        prompt = GeneratePrompt(promptSegments);
 
-        return this._textGenerator.GenerateTextChunkAsync(prompt, options, token);
+        // Generate Answer
+        return this._textGenerator.CompleteChatChunkAsync(promptSegments, options, token);
     }
 
     private static bool ValueIsEquivalentTo(string value, string target)

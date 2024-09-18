@@ -25,7 +25,7 @@
         <Description>Azure AI Search connector for Microsoft Kernel Memory, to store and search memory using Azure AI Search vector indexing and semantic features.</Description>
         <PackageTags>Memory, RAG, Kernel Memory, Azure AI Search, HNSW, AI, Artificial Intelligence, Embeddings, Vector DB, Vector Search, ETL</PackageTags>
         <DocumentationFile>bin/$(Configuration)/$(TargetFramework)/$(AssemblyName).xml</DocumentationFile>
-        <Version>0.71.3</Version>
+        <Version>0.71.4</Version>
         <Authors>DRLabs AI</Authors>
         <Company>DRLabs AI</Company>
         <Copyright>© DRLabs AI. All rights reserved.</Copyright>

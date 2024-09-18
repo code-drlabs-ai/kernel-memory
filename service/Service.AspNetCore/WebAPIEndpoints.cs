@@ -244,7 +244,7 @@ public static class WebAPIEndpoints
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
 
-        route.RequireAuthorization();
+        // route.RequireAuthorization();
     }
     public static void AddAskChunkEndpoint(
         this IEndpointRouteBuilder builder, string apiPrefix = "/", IEndpointFilter? authFilter = null)
@@ -298,7 +298,7 @@ public static class WebAPIEndpoints
 
         if (authFilter != null) { route.AddEndpointFilter(authFilter); }
 
-        route.RequireAuthorization();
+        // route.RequireAuthorization();
     }
     public static void AddSearchEndpoint(
         this IEndpointRouteBuilder builder, string apiPrefix = "/", IEndpointFilter? authFilter = null)
