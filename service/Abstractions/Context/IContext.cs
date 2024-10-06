@@ -130,6 +130,16 @@ public static class CustomContextExtensions
         return defaultValue;
     }
 
+    public static string GetRephrasedQuestionRagPromptOrDefault(this IContext? context, string defaultValue)
+    {
+        if (context.TryGetArg<string>(Constants.CustomContext.Rag.RephraseQuestionPrompt, out var customValue))
+        {
+            return customValue;
+        }
+
+        return defaultValue;
+    }
+
     public static string GetCustomRagAdditionalPromptOrDefault(this IContext? context, string defaultValue)
     {
         if (context.TryGetArg<string>(Constants.CustomContext.Rag.AdditionalPrompt, out var customValue))

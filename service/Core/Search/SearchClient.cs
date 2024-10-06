@@ -27,6 +27,7 @@ public sealed class SearchClient : ISearchClient
     private readonly SearchClientConfig _config;
     private readonly ILogger<SearchClient> _log;
     private readonly string _answerPrompt;
+    private readonly string _rephraseQuestionPrompt;
 
     public SearchClient(
         IMemoryDb memoryDb,
@@ -42,6 +43,7 @@ public sealed class SearchClient : ISearchClient
 
         promptProvider ??= new EmbeddedPromptProvider();
         this._answerPrompt = promptProvider.ReadPrompt(Constants.PromptNamesAnswerWithFacts);
+        this._rephraseQuestionPrompt = promptProvider.ReadPrompt(Constants.PromptNamesRephraseQuestion);
 
         this._log = (loggerFactory ?? DefaultLogger.Factory).CreateLogger<SearchClient>();
 
@@ -226,6 +228,17 @@ public sealed class SearchClient : ISearchClient
         var factsAvailableCount = 0;
         var answer = noAnswerFound;
 
+        // Rephrasing the question for better answers
+        var rephrasedQuestion = new StringBuilder();
+        await foreach (var x in this.GenerateRephrasedQuestion(question, context, cancellationToken).ConfigureAwait(false))
+        {
+            rephrasedQuestion.Append(x);
+        }
+        if (rephrasedQuestion.Length > 0)
+        {
+            question = rephrasedQuestion.ToString();
+        }
+
         this._log.LogTrace("Fetching relevant memories");
         IAsyncEnumerable<(MemoryRecord, double)> matches = this._memoryDb.GetSimilarListAsync(
             index: index,
@@ -350,7 +363,7 @@ public sealed class SearchClient : ISearchClient
         watch.Stop();
 
         answer.Result = completeAnswer.ToString();
-        answer.NoResult = ValueIsEquivalentTo(answer.Result, this._config.EmptyAnswer);
+        answer.NoResult = ValueIsEquivalentTo(answer.Result, emptyAnswer);
         if (answer.NoResult)
         {
             answer.NoResultReason = "No relevant memories found";
@@ -418,6 +431,17 @@ public sealed class SearchClient : ISearchClient
         var factsUsedCount = 0;
         var factsAvailableCount = 0;
         var answer = noAnswerFound;
+
+        // Rephrasing the question for better answers
+        var rephrasedQuestion = new StringBuilder();
+        await foreach (var x in this.GenerateRephrasedQuestion(question, context, cancellationToken).ConfigureAwait(false))
+        {
+            rephrasedQuestion.Append(x);
+        }
+        if (rephrasedQuestion.Length > 0)
+        {
+            question = rephrasedQuestion.ToString();
+        }
 
         this._log.LogTrace("Fetching relevant memories");
         IAsyncEnumerable<(MemoryRecord, double)> matches = this._memoryDb.GetSimilarListAsync(
@@ -566,6 +590,85 @@ public sealed class SearchClient : ISearchClient
         yield return answer;
     }
 
+    private IAsyncEnumerable<string> GenerateRephrasedQuestion(string question, IContext? context, CancellationToken token)
+    {
+        // LLM Options
+        int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
+        double temperature = context.GetCustomRagTemperatureOrDefault(this._config.Temperature);
+        double nucleusSampling = context.GetCustomRagNucleusSamplingOrDefault(this._config.TopP);
+        var options = new TextGenerationOptions
+        {
+            MaxTokens = maxTokens,
+            Temperature = temperature,
+            NucleusSampling = nucleusSampling,
+            PresencePenalty = this._config.PresencePenalty,
+            FrequencyPenalty = this._config.FrequencyPenalty,
+            StopSequences = this._config.StopSequences,
+            TokenSelectionBiases = this._config.TokenSelectionBiases,
+        };
+
+        // Generate Prompt
+        List<PromptSegment> promptSegments = this.GenerateRephrasedQuestionPromptSegments(question, context);
+
+        // Generate Answer
+        return this._textGenerator.CompleteChatAsync(promptSegments, options, token);
+    }
+
+    private List<PromptSegment> GenerateRephrasedQuestionPromptSegments(string question, IContext? context)
+    {
+        List<PromptSegment> promptSegments = new();
+        var systemPrompt = new StringBuilder();
+
+        // System Prompt for Question Rephrasing
+        systemPrompt.Append(context.GetRephrasedQuestionRagPromptOrDefault(this._rephraseQuestionPrompt));
+
+        // Additional Prompt
+        var additionalPrompt = context.GetCustomRagAdditionalPromptOrDefault(string.Empty);
+        if (!string.IsNullOrEmpty(additionalPrompt))
+        {
+            additionalPrompt = $"\r\nAdditional Instructions:\r\n{additionalPrompt}";
+            systemPrompt.Append(additionalPrompt);
+        }
+
+        // Question History
+        var previousQuestions = new StringBuilder();
+        try
+        {
+            var chatHistory = context.GetCustomRagChatHistoryOrDefault(null);
+            if (chatHistory != null)
+            {
+                string[] chatSegments;
+                foreach (var chat in chatHistory)
+                {
+                    chatSegments = chat.Split("__");
+                    switch (chatSegments[0].ToUpper(CultureInfo.CurrentCulture))
+                    {
+                        case "USER":
+                            previousQuestions.Append("- " + chatSegments[1]);
+                            break;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            this._log.LogWarning("Could not parse the chat history.", ex);
+        }
+        if (previousQuestions.Length > 0)
+        {
+            var previousQuestion = $"\r\nPrevious Questions:\r\n{previousQuestions}";
+            systemPrompt.Append(previousQuestion);
+        }
+
+        // User Current Question
+        systemPrompt.Append("\r\nNext Question:\r\n" + question.Trim());
+        systemPrompt.Append("\r\nRephrased Question:\r\n");
+
+        promptSegments.Add(new PromptSegment(ChatRoles.System, "\r\n" + systemPrompt));
+
+        return promptSegments;
+    }
+
     private IAsyncEnumerable<string> GenerateAnswer(string question, string facts, IContext? context, CancellationToken token, out string prompt)
     {
         // LLM Options
@@ -584,41 +687,42 @@ public sealed class SearchClient : ISearchClient
         };
 
         // Generate Prompt
-        List<PromptSegment> promptSegments = this.GeneratePromptSegments(question, facts, context);
-        prompt = GeneratePrompt(promptSegments);
+        List<PromptSegment> promptSegments = this.GenerateAnswerPromptSegments(question, facts, context);
+        prompt = GenerateAnswerPrompt(promptSegments);
 
         // Generate Answer
         return this._textGenerator.CompleteChatAsync(promptSegments, options, token);
     }
 
-    private static string GeneratePrompt(List<PromptSegment> promptSegments)
-    {
-        var promptBuilder = new StringBuilder();
-        promptBuilder.AppendJoin<string>("\r\n", promptSegments.Select(s => s.ChatRole + "__" + s.Message).ToArray());
-        var prompt = promptBuilder.ToString();
-        return prompt;
-    }
-
-    private List<PromptSegment> GeneratePromptSegments(string question, string facts, IContext? context)
+    private List<PromptSegment> GenerateAnswerPromptSegments(string question, string facts, IContext? context)
     {
         List<PromptSegment> promptSegments = new();
+        var systemPrompt = new StringBuilder();
 
         // System Prompt
+        string emptyAnswer = context.GetCustomEmptyAnswerTextOrDefault(this._config.EmptyAnswer);
         var prompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
-        prompt = prompt.Replace("{{$notFound}}", this._config.EmptyAnswer, StringComparison.OrdinalIgnoreCase);
-        promptSegments.Add(new PromptSegment(ChatRoles.System, prompt)); // "\r\n\r\n"
+        prompt = prompt.Replace("{{$notFound}}", emptyAnswer, StringComparison.OrdinalIgnoreCase);
+        systemPrompt.Append(prompt);
+
         // Additional Prompt
         var additionalPrompt = context.GetCustomRagAdditionalPromptOrDefault(string.Empty);
         if (!string.IsNullOrEmpty(additionalPrompt))
         {
-            promptSegments.Add(new PromptSegment(ChatRoles.System, $"Additional Instructions:\r\n{additionalPrompt}")); // "\r\n\r\n"
+            additionalPrompt = $"\r\nAdditional Instructions:\r\n{additionalPrompt}";
+            systemPrompt.Append(additionalPrompt);
         }
+
         // Facts
         if (!string.IsNullOrEmpty(facts.Trim()))
         {
-            promptSegments.Add(new PromptSegment(ChatRoles.System, $"Facts:\r\n{facts.Trim()}"));
+            systemPrompt.Append("\r\nFacts:\r\n" + facts.Trim());
         }
+
+        promptSegments.Add(new PromptSegment(ChatRoles.System, "\r\n" + systemPrompt));
+
         // Chat History
+        var previousQuestions = new StringBuilder();
         try
         {
             var chatHistory = context.GetCustomRagChatHistoryOrDefault(null);
@@ -630,9 +734,6 @@ public sealed class SearchClient : ISearchClient
                     chatSegments = chat.Split("__");
                     switch (chatSegments[0])
                     {
-                        case "SYSTEM":
-                            promptSegments.Add(new PromptSegment(ChatRoles.System, chatSegments[1]));
-                            break;
                         case "USER":
                             promptSegments.Add(new PromptSegment(ChatRoles.User, chatSegments[1]));
                             break;
@@ -647,10 +748,21 @@ public sealed class SearchClient : ISearchClient
         {
             this._log.LogWarning("Could not parse the chat history.", ex);
         }
+
         // User Question
-        promptSegments.Add(new PromptSegment(ChatRoles.User, question.Trim()));
+        promptSegments.Add(new PromptSegment(ChatRoles.User, "\r\n" + question.Trim()));
+        promptSegments.Add(new PromptSegment(ChatRoles.Assistant, "\r\n"));
 
         return promptSegments;
+    }
+
+    private static string GenerateAnswerPrompt(List<PromptSegment> promptSegments)
+    {
+        var promptBuilder = new StringBuilder();
+        promptBuilder.AppendJoin<string>("\r\n", promptSegments.Select(s => s.ChatRole + "__" + s.Message).ToArray());
+        var prompt = promptBuilder.ToString();
+
+        return prompt;
     }
 
     private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token, out string prompt)
@@ -671,8 +783,8 @@ public sealed class SearchClient : ISearchClient
         };
 
         // Generate Prompt
-        List<PromptSegment> promptSegments = this.GeneratePromptSegments(question, facts, context);
-        prompt = GeneratePrompt(promptSegments);
+        List<PromptSegment> promptSegments = this.GenerateAnswerPromptSegments(question, facts, context);
+        prompt = GenerateAnswerPrompt(promptSegments);
 
         // Generate Answer
         return this._textGenerator.CompleteChatChunkAsync(promptSegments, options, token);

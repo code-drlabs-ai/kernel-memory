@@ -56,6 +56,9 @@ public static class Constants
             // Used to override the RAG prompt
             public const string Prompt = "custom_rag_prompt_str";
 
+            // Used to override the CleansedQuestion RAG prompt
+            public const string RephraseQuestionPrompt = "custom_rag_cleansed_question_prompt_str";
+
             // Used to override the RAG additional prompt
             public const string AdditionalPrompt = "custom_rag_additional_prompt_str";
 
@@ -172,4 +175,5 @@ public static class Constants
     // Standard prompt names
     public const string PromptNamesSummarize = "summarize";
     public const string PromptNamesAnswerWithFacts = "answer-with-facts";
+    public const string PromptNamesRephraseQuestion = "rephrase-question";
 }

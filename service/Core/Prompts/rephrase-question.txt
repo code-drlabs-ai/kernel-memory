@@ -1,0 +1,18 @@
+system: 
+Given the user's previous questions, rephrase the next question to be a standalone question.
+Use additional instructions to understand the topic of the conversation.
+Rephrase the question in a simple english language and do not answer the question.
+If the next question is empty or irrelevant to previous questions, just restate the original question.
+If the question is not a question, return restate the original question.
+Do not add more details than necessary to the rephrased question.
+
+Here is an example:
+Previous Questions:
+-   Where is Mount Everest?
+-   Whats is the height of it?
+Next Question:
+can I use firstname in password
+Rephrased Question:
+Can I use a first name in the password?
+
+======

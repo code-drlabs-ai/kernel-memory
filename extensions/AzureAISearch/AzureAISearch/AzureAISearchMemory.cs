@@ -195,31 +195,29 @@ public class AzureAISearchMemory : IMemoryDb, IMemoryDbUpsertBatch
 
         SearchOptions options = new()
         {
+            Size = limit,
+            IncludeTotalCount = true,
             VectorSearch = new()
             {
                 Queries =
                 {
                     new VectorizableTextQuery(text: text)
                     {
-                        // KNearestNeighborsCount = limit,
+                        KNearestNeighborsCount = 50, //Lovely
                         Fields = { AzureAISearchMemoryRecord.VectorField },
                         Exhaustive = false
                     }
                 }
             }
         };
-
-        if (limit > 0)
-        {
-            options.VectorSearch.Queries[0].KNearestNeighborsCount = limit;
-            options.Size = limit;
-            this._log.LogDebug("KNearestNeighborsCount and max results: {0}", limit);
-        }
+        this._log.LogDebug("KNearestNeighborsCount and max results: {0}", limit);
 
         options.QueryType = SearchQueryType.Semantic;
         options.SemanticSearch = new SemanticSearchOptions
         {
-            SemanticConfigurationName = SemanticSearchConfigName
+            SemanticConfigurationName = SemanticSearchConfigName,
+            QueryCaption = new QueryCaption(QueryCaptionType.Extractive),
+            QueryAnswer = new QueryAnswer(QueryAnswerType.Extractive)
         };
 
         // Remove empty filters

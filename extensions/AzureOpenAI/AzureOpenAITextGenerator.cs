@@ -170,8 +170,8 @@ public sealed class AzureOpenAITextGenerator : ITextGenerator
             //NucleusSamplingFactor = (float)options.NucleusSampling,
             FrequencyPenalty = (float)options.FrequencyPenalty,
             PresencePenalty = (float)options.PresencePenalty,
-            IncludeLogProbabilities = true,
-            TopP = 1,
+            //IncludeLogProbabilities = true,
+            //TopP = 1,
             //IncludeCompletionUsage = true
             //StreamOptions = new { IncludeUsage = true },
             //ChoicesPerPrompt = 1,
