@@ -626,7 +626,7 @@ public sealed class SearchClient : ISearchClient
         var additionalPrompt = context.GetCustomRagAdditionalPromptOrDefault(string.Empty);
         if (!string.IsNullOrEmpty(additionalPrompt))
         {
-            additionalPrompt = $"\r\nAdditional Instructions:\r\n{additionalPrompt}";
+            additionalPrompt = $"\r\n\r\nAdditional Instructions:\r\n{additionalPrompt}";
             systemPrompt.Append(additionalPrompt);
         }
 
@@ -656,13 +656,13 @@ public sealed class SearchClient : ISearchClient
         }
         if (previousQuestions.Length > 0)
         {
-            var previousQuestion = $"\r\nPrevious Questions:\r\n{previousQuestions}";
+            var previousQuestion = $"\r\n\r\nPrevious Questions:\r\n{previousQuestions}";
             systemPrompt.Append(previousQuestion);
         }
 
         // User Current Question
-        systemPrompt.Append("\r\nNext Question:\r\n" + question.Trim());
-        systemPrompt.Append("\r\nRephrased Question:\r\n");
+        systemPrompt.Append("\r\n\r\nNext Question:\r\n" + question.Trim());
+        systemPrompt.Append("\r\n\r\nRephrased Question:\r\n");
 
         promptSegments.Add(new PromptSegment(ChatRoles.System, "\r\n" + systemPrompt));
 
@@ -709,14 +709,14 @@ public sealed class SearchClient : ISearchClient
         var additionalPrompt = context.GetCustomRagAdditionalPromptOrDefault(string.Empty);
         if (!string.IsNullOrEmpty(additionalPrompt))
         {
-            additionalPrompt = $"\r\nAdditional Instructions:\r\n{additionalPrompt}";
+            additionalPrompt = $"\r\n\r\nAdditional Instructions:\r\n{additionalPrompt}";
             systemPrompt.Append(additionalPrompt);
         }
 
         // Facts
         if (!string.IsNullOrEmpty(facts.Trim()))
         {
-            systemPrompt.Append("\r\nFacts:\r\n" + facts.Trim());
+            systemPrompt.Append("\r\n\r\nFacts:\r\n" + facts.Trim());
         }
 
         promptSegments.Add(new PromptSegment(ChatRoles.System, "\r\n" + systemPrompt));
@@ -732,7 +732,7 @@ public sealed class SearchClient : ISearchClient
                 foreach (var chat in chatHistory)
                 {
                     chatSegments = chat.Split("__");
-                    switch (chatSegments[0])
+                    switch (chatSegments[0].ToUpper(CultureInfo.CurrentCulture))
                     {
                         case "USER":
                             promptSegments.Add(new PromptSegment(ChatRoles.User, chatSegments[1]));
@@ -751,7 +751,6 @@ public sealed class SearchClient : ISearchClient
 
         // User Question
         promptSegments.Add(new PromptSegment(ChatRoles.User, "\r\n" + question.Trim()));
-        promptSegments.Add(new PromptSegment(ChatRoles.Assistant, "\r\n"));
 
         return promptSegments;
     }
@@ -759,10 +758,12 @@ public sealed class SearchClient : ISearchClient
     private static string GenerateAnswerPrompt(List<PromptSegment> promptSegments)
     {
         var promptBuilder = new StringBuilder();
-        promptBuilder.AppendJoin<string>("\r\n", promptSegments.Select(s => s.ChatRole + "__" + s.Message).ToArray());
-        var prompt = promptBuilder.ToString();
+        promptSegments.ForEach((f) =>
+        {
+            promptBuilder.AppendLine(f.ChatRole.ToString().ToLower(CultureInfo.CurrentCulture) + ": " + f.Message);
+        });
 
-        return prompt;
+        return promptBuilder.ToString();
     }
 
     private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token, out string prompt)
