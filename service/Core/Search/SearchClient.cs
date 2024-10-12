@@ -630,7 +630,7 @@ public sealed class SearchClient : ISearchClient
             systemPrompt.Append(additionalPrompt);
         }
 
-        // Question History
+        // Chat History
         var previousQuestions = new StringBuilder();
         try
         {
@@ -644,7 +644,10 @@ public sealed class SearchClient : ISearchClient
                     switch (chatSegments[0].ToUpper(CultureInfo.CurrentCulture))
                     {
                         case "USER":
-                            previousQuestions.Append("- " + chatSegments[1]);
+                            previousQuestions.Append("  user: " + chatSegments[1]);
+                            break;
+                        case "ASSISTANT":
+                            previousQuestions.Append("  asssistant: " + chatSegments[1]);
                             break;
                     }
                 }
@@ -656,13 +659,12 @@ public sealed class SearchClient : ISearchClient
         }
         if (previousQuestions.Length > 0)
         {
-            var previousQuestion = $"\r\n\r\nPrevious Questions:\r\n{previousQuestions}";
+            var previousQuestion = $"\r\n\r\n====\r\n\r\nChat History:\r\n{previousQuestions}";
             systemPrompt.Append(previousQuestion);
         }
 
         // User Current Question
-        systemPrompt.Append("\r\n\r\nNext Question:\r\n" + question.Trim());
-        systemPrompt.Append("\r\n\r\nRephrased Question:\r\n");
+        systemPrompt.Append("\r\nNext Question: " + question.Trim());
 
         promptSegments.Add(new PromptSegment(ChatRoles.System, "\r\n" + systemPrompt));
 
@@ -722,7 +724,6 @@ public sealed class SearchClient : ISearchClient
         promptSegments.Add(new PromptSegment(ChatRoles.System, "\r\n" + systemPrompt));
 
         // Chat History
-        var previousQuestions = new StringBuilder();
         try
         {
             var chatHistory = context.GetCustomRagChatHistoryOrDefault(null);
@@ -750,7 +751,7 @@ public sealed class SearchClient : ISearchClient
         }
 
         // User Question
-        promptSegments.Add(new PromptSegment(ChatRoles.User, "\r\n" + question.Trim()));
+        promptSegments.Add(new PromptSegment(ChatRoles.User, question.Trim()));
 
         return promptSegments;
     }

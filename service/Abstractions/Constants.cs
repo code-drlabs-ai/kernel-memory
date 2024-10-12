@@ -57,7 +57,7 @@ public static class Constants
             public const string Prompt = "custom_rag_prompt_str";
 
             // Used to override the CleansedQuestion RAG prompt
-            public const string RephraseQuestionPrompt = "custom_rag_cleansed_question_prompt_str";
+            public const string RephraseQuestionPrompt = "custom_rag_rephrase_question_prompt_str";
 
             // Used to override the RAG additional prompt
             public const string AdditionalPrompt = "custom_rag_additional_prompt_str";

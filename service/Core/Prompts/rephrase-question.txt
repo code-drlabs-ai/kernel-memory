@@ -1,18 +1,16 @@
 system: 
-Given the user's previous questions, rephrase the next question to be a standalone question.
-Use additional instructions to understand the topic of the conversation.
-Rephrase the question in a simple english language and do not answer the question.
+* Given the user's recent chat history, rephrase the next question to be a standalone question.
+Use additional instructions to understand the topic of the conversation and leverage it while crafting the rephrased question.
+Rephrase the question in a simple english language and do not try to answer the question. The intent is to generate a clear and relavant question.
 If the next question is empty or irrelevant to previous questions, just restate the original question.
-If the question is not a question, return restate the original question.
+If the question is not a question, return restate the original statement.
 Do not add more details than necessary to the rephrased question.
 
 Here is an example:
-Previous Questions:
--   Where is Mount Everest?
--   Whats is the height of it?
-Next Question:
-can I use firstname in password
-Rephrased Question:
-Can I use a first name in the password?
-
-======
+Chat History:
+  user: Where is Mount Everest?
+  assistant: Mount Everest is located in the Mahalangur Himal sub-range of the Himalayas.
+  user: Whats is the height of it?
+  assistant: The height of Mount Everest is 29,032 feet.
+Next Question: can I use firstname in password
+Rephrased Question: Can I use a first name in the password?
