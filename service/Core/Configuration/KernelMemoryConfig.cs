@@ -93,7 +93,7 @@ public class KernelMemoryConfig
         {
             return (this.DefaultSteps.Count > 0)
                 ? this.DefaultSteps
-                : Constants.DefaultPipeline.ToList();
+                : Constants.PipelineWithSummary.ToList();
         }
     }
 

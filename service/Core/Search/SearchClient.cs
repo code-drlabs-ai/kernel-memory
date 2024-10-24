@@ -17,11 +17,18 @@ using Microsoft.KernelMemory.MemoryStorage;
 using Microsoft.KernelMemory.Prompts;
 using Microsoft.KernelMemory.Models;
 using Microsoft.KernelMemory.Enums;
+using System.Text.RegularExpressions;
+using System.Net.Http;
+using System.Text.Json;
+using DocumentFormat.OpenXml.Drawing;
+using System.Text.Json.Serialization;
+using System.Net.Http.Json;
 
 namespace Microsoft.KernelMemory.Search;
 
 public sealed class SearchClient : ISearchClient
 {
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryDb _memoryDb;
     private readonly ITextGenerator _textGenerator;
     private readonly SearchClientConfig _config;
@@ -29,9 +36,13 @@ public sealed class SearchClient : ISearchClient
     private readonly string _answerPrompt;
     private readonly string _rephraseQuestionPrompt;
 
+    // Regex pattern to match the required format
+    private readonly string _factSyntaxPattern = @"==== \[File:(.*?)\]";
+
     public SearchClient(
         IMemoryDb memoryDb,
         ITextGenerator textGenerator,
+        IHttpClientFactory httpClientFactory,
         SearchClientConfig? config = null,
         IPromptProvider? promptProvider = null,
         ILoggerFactory? loggerFactory = null)
@@ -40,6 +51,8 @@ public sealed class SearchClient : ISearchClient
         this._textGenerator = textGenerator;
         this._config = config ?? new SearchClientConfig();
         this._config.Validate();
+
+        this._httpClientFactory = httpClientFactory;
 
         promptProvider ??= new EmbeddedPromptProvider();
         this._answerPrompt = promptProvider.ReadPrompt(Constants.PromptNamesAnswerWithFacts);
@@ -197,7 +210,7 @@ public sealed class SearchClient : ISearchClient
         CancellationToken cancellationToken = default)
     {
         string emptyAnswer = context.GetCustomEmptyAnswerTextOrDefault(this._config.EmptyAnswer);
-        string answerPrompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
+        // string answerPrompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
         string factTemplate = context.GetCustomRagFactTemplateOrDefault(this._config.FactTemplate);
         if (!factTemplate.EndsWith('\n')) { factTemplate += "\n"; }
 
@@ -215,14 +228,16 @@ public sealed class SearchClient : ISearchClient
             return noAnswerFound;
         }
 
-        var facts = new StringBuilder();
-        var maxTokens = this._config.MaxAskPromptSize > 0
-            ? this._config.MaxAskPromptSize
-            : this._textGenerator.MaxTokenTotal;
-        var tokensAvailable = maxTokens
-                              - this._textGenerator.CountTokens(answerPrompt)
-                              - this._textGenerator.CountTokens(question)
-                              - this._config.AnswerTokens;
+        // var facts = new StringBuilder();
+        List<string> facts = new();
+        List<string> factCitations = new();
+        //var maxTokens = this._config.MaxAskPromptSize > 0
+        //    ? this._config.MaxAskPromptSize
+        //    : this._textGenerator.MaxTokenTotal;
+        //var tokensAvailable = maxTokens
+        //                      - this._textGenerator.CountTokens(answerPrompt)
+        //                      - this._textGenerator.CountTokens(question)
+        //                      - this._config.AnswerTokens;
 
         var factsUsedCount = 0;
         var factsAvailableCount = 0;
@@ -263,6 +278,9 @@ public sealed class SearchClient : ISearchClient
 
             string fileName = memory.GetFileName(this._log);
 
+            int partitionNumber = memory.GetPartitionNumber(this._log);
+            int sectionNumber = memory.GetSectionNumber();
+
             string webPageUrl = memory.GetWebPageUrl(index);
 
             var partitionText = memory.GetPartitionText(this._log).Trim();
@@ -279,23 +297,32 @@ public sealed class SearchClient : ISearchClient
                 factContent: partitionText,
                 source: (fileName == "content.url" ? webPageUrl : fileName),
                 relevance: relevance.ToString("P1", CultureInfo.CurrentCulture),
+                fileId: fileId,
+                documentId: documentId,
+                partitionNumber: partitionNumber,
+                sectionNumber: sectionNumber,
                 recordId: memory.Id,
                 tags: memory.Tags,
                 metadata: memory.Payload);
 
-            // Use the partition/chunk only if there's room for it
-            var size = this._textGenerator.CountTokens(fact);
-            if (size >= tokensAvailable)
-            {
-                // Stop after reaching the max number of tokens
-                break;
-            }
+            //// Use the partition/chunk only if there's room for it
+            //var size = this._textGenerator.CountTokens(fact);
+            //if (size >= tokensAvailable)
+            //{
+            //    // Stop after reaching the max number of tokens
+            //    break;
+            //}
 
             factsUsedCount++;
             this._log.LogTrace("Adding text {0} with relevance {1}", factsUsedCount, relevance);
 
-            facts.Append(fact);
-            tokensAvailable -= size;
+            var factCitation = this.GetFactCitation(fact);
+            if (!string.IsNullOrEmpty(factCitation))
+            {
+                factCitations.Add(factCitation);
+            }
+            facts.Add(fact);
+            //tokensAvailable -= size;
 
             // If the file is already in the list of citations, only add the partition
             var citation = answer.RelevantSources.FirstOrDefault(x => x.Link == linkToFile);
@@ -318,8 +345,8 @@ public sealed class SearchClient : ISearchClient
             {
                 Text = partitionText,
                 Relevance = (float)relevance,
-                PartitionNumber = memory.GetPartitionNumber(this._log),
-                SectionNumber = memory.GetSectionNumber(),
+                PartitionNumber = partitionNumber,
+                SectionNumber = sectionNumber,
                 LastUpdate = memory.GetLastUpdate(),
                 Tags = memory.Tags,
             });
@@ -331,38 +358,44 @@ public sealed class SearchClient : ISearchClient
             }
         }
 
-        if (factsAvailableCount > 0 && factsUsedCount == 0)
-        {
-            this._log.LogError("Unable to inject memories in the prompt, not enough tokens available");
-            noAnswerFound.NoResultReason = "Unable to use memories";
-            return noAnswerFound;
-        }
+        //if (factsAvailableCount > 0 && factsUsedCount == 0)
+        //{
+        //    this._log.LogError("Unable to inject memories in the prompt, not enough tokens available");
+        //    noAnswerFound.NoResultReason = "Unable to use memories";
+        //    return noAnswerFound;
+        //}
 
-        if (factsUsedCount == 0)
-        {
-            this._log.LogWarning("No memories available");
-            noAnswerFound.NoResultReason = "No memories available";
-            return noAnswerFound;
-        }
+        //if (factsUsedCount == 0)
+        //{
+        //    this._log.LogWarning("No memories available");
+        //    noAnswerFound.NoResultReason = "No memories available";
+        //    return noAnswerFound;
+        //}
 
         var charsGenerated = 0;
         var prompt = string.Empty;
         var completeAnswer = new StringBuilder();
         var watch = new Stopwatch();
         watch.Restart();
-        await foreach (var x in this.GenerateAnswer(question, facts.ToString(), context, cancellationToken, out prompt).ConfigureAwait(false))
+        await foreach (var chunk in this.GenerateAnswer(question, facts, factCitations, context, cancellationToken, out prompt).ConfigureAwait(false))
         {
-            completeAnswer.Append(x);
+            completeAnswer.Append(chunk);
             if (this._log.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Trace) && completeAnswer.Length - charsGenerated >= 30)
             {
                 charsGenerated = completeAnswer.Length;
                 this._log.LogTrace("{0} chars generated", charsGenerated);
             }
         }
-
         watch.Stop();
 
-        answer.Result = completeAnswer.ToString();
+        // Sanitize result
+        var sanitizedAnswer = this.SanitizeAnswer(index, completeAnswer.ToString());
+        answer.Result = sanitizedAnswer.Item1;
+
+        // Add clean citations
+        answer.RelevantSources.Clear(); //Remove the Azure Search memory based citations and add OpenAI based citations
+        answer.RelevantSources = sanitizedAnswer.Item2;
+
         answer.NoResult = ValueIsEquivalentTo(answer.Result, emptyAnswer);
         if (answer.NoResult)
         {
@@ -375,7 +408,6 @@ public sealed class SearchClient : ISearchClient
         }
 
         answer.Prompt = prompt;
-
         // Count Prompt Tokens
         var promptTokens = this._textGenerator.CountTokens(prompt);
         var completionTokens = this._textGenerator.CountTokens(completeAnswer.ToString());
@@ -388,6 +420,127 @@ public sealed class SearchClient : ISearchClient
         }
 
         return answer;
+    }
+
+    private string? GetFactCitation(string fact)
+    {
+        // Find all matches in the input string
+        MatchCollection matches = Regex.Matches(fact, this._factSyntaxPattern);
+
+        return matches.FirstOrDefault()?.Value ?? null;
+    }
+
+    private (string, List<Citation>) SanitizeAnswer(string index, string answer)
+    {
+        // Regex pattern to match the required format
+        string pattern = @"\[File:(.*?)\]";
+
+        // Find all matches in the input string
+        MatchCollection matches = Regex.Matches(answer, pattern);
+
+        var citations = new List<Citation>();
+        string fileName = string.Empty;
+        string fileId = string.Empty;
+        string documentId = string.Empty;
+        int partitionNumber;
+        int sectionNumber;
+        float relevance;
+
+        // Loop through each match and print the content
+        foreach (Match match in matches)
+        {
+            fileName = string.Empty;
+            fileId = string.Empty;
+            documentId = string.Empty;
+            partitionNumber = 0;
+            sectionNumber = 0;
+            relevance = 0;
+
+            if (match.Success)
+            {
+                var segments = match.Value.Substring(1, match.Value.Length - 2).Split(";");
+
+                // Step 3: Loop through each segment and further split by ':'
+                foreach (string segment in segments)
+                {
+                    // Check if the segment contains a colon to avoid index errors
+                    if (segment.Contains(":", StringComparison.CurrentCulture))
+                    {
+                        string[] parts = segment.Split(':');
+
+                        // Ensure we have exactly two parts before accessing
+                        if (parts.Length == 2)
+                        {
+                            if (parts[0].Trim() == "File")
+                            {
+                                fileName = parts[1].Trim();
+                            }
+                            if (parts[0].Trim() == "FileId")
+                            {
+                                fileId = parts[1].Trim();
+                            }
+                            if (parts[0].Trim() == "DocId")
+                            {
+                                documentId = parts[1].Trim();
+                            }
+                            if (parts[0].Trim() == "PartNum")
+                            {
+                                int.TryParse(parts[1].Trim(), CultureInfo.CurrentCulture, out partitionNumber);
+                            }
+                            if (parts[0].Trim() == "SecNum")
+                            {
+                                int.TryParse(parts[1].Trim(), CultureInfo.CurrentCulture, out sectionNumber);
+                            }
+                            if (parts[0].Trim() == "Rel")
+                            {
+                                float.TryParse(parts[1].Replace("%", string.Empty, StringComparison.CurrentCulture).Trim(), CultureInfo.CurrentCulture, out relevance);
+                            }
+                        }
+                    }
+                }
+
+                var citation = citations.FirstOrDefault((s) => s.FileId == fileId && s.DocumentId == documentId);
+                if (citation == null)
+                {
+                    citation = new Citation()
+                    {
+                        Index = index,
+                        DocumentId = documentId,
+                        FileId = fileId,
+                        Link = $"{index}/{documentId}/{fileId}",
+                        SourceContentType = string.Empty,
+                        SourceName = fileName,
+                        SourceUrl = this.GetSourceUrl(index, documentId, fileName)
+                    };
+                    citations.Add(citation);
+                }
+
+                var citationPartition = citation.Partitions.FirstOrDefault((s) => s.PartitionNumber == partitionNumber && s.SectionNumber == sectionNumber);
+                if (citationPartition == null)
+                {
+                    citationPartition = new Citation.Partition()
+                    {
+                        Relevance = (float)relevance,
+                        PartitionNumber = partitionNumber,
+                        SectionNumber = sectionNumber,
+                        LastUpdate = DateTime.Now
+                    };
+                    citation.Partitions.Add(citationPartition);
+                }
+            }
+
+            answer = answer.Replace(match.Value, string.Empty, StringComparison.CurrentCulture);
+        }
+
+        return (answer, citations);
+    }
+
+    private string GetSourceUrl(string index, string documentId, string fileName)
+    {
+        return Constants.HttpDownloadEndpointWithParams
+            .Replace(Constants.HttpIndexPlaceholder, index, StringComparison.Ordinal)
+            .Replace(Constants.HttpDocumentIdPlaceholder, documentId, StringComparison.Ordinal)
+            .Replace(Constants.HttpFilenamePlaceholder, fileName, StringComparison.Ordinal);
     }
 
     public async IAsyncEnumerable<MemoryAnswer> AskAsyncChunk(
@@ -419,7 +572,9 @@ public sealed class SearchClient : ISearchClient
             yield break;
         }
 
-        var facts = new StringBuilder();
+        // var facts = new StringBuilder();
+        List<string> facts = new();
+        List<string> factCitations = new();
         var maxTokens = this._config.MaxAskPromptSize > 0
             ? this._config.MaxAskPromptSize
             : this._textGenerator.MaxTokenTotal;
@@ -467,6 +622,9 @@ public sealed class SearchClient : ISearchClient
 
             string fileName = memory.GetFileName(this._log);
 
+            int partitionNumber = memory.GetPartitionNumber(this._log);
+            int sectionNumber = memory.GetSectionNumber();
+
             string webPageUrl = memory.GetWebPageUrl(index);
 
             var partitionText = memory.GetPartitionText(this._log).Trim();
@@ -483,6 +641,10 @@ public sealed class SearchClient : ISearchClient
                 factContent: partitionText,
                 source: (fileName == "content.url" ? webPageUrl : fileName),
                 relevance: relevance.ToString("P1", CultureInfo.CurrentCulture),
+                fileId: fileId,
+                documentId: documentId,
+                partitionNumber: partitionNumber,
+                sectionNumber: sectionNumber,
                 recordId: memory.Id,
                 tags: memory.Tags,
                 metadata: memory.Payload);
@@ -498,7 +660,12 @@ public sealed class SearchClient : ISearchClient
             factsUsedCount++;
             this._log.LogTrace("Adding text {0} with relevance {1}", factsUsedCount, relevance);
 
-            facts.Append(fact);
+            var factCitation = this.GetFactCitation(fact);
+            if (!string.IsNullOrEmpty(factCitation))
+            {
+                factCitations.Add(factCitation);
+            }
+            facts.Add(fact);
             tokensAvailable -= size;
 
             // If the file is already in the list of citations, only add the partition
@@ -522,8 +689,8 @@ public sealed class SearchClient : ISearchClient
             {
                 Text = partitionText,
                 Relevance = (float)relevance,
-                PartitionNumber = memory.GetPartitionNumber(this._log),
-                SectionNumber = memory.GetSectionNumber(),
+                PartitionNumber = partitionNumber,
+                SectionNumber = sectionNumber,
                 LastUpdate = memory.GetLastUpdate(),
                 Tags = memory.Tags,
             });
@@ -535,39 +702,39 @@ public sealed class SearchClient : ISearchClient
             }
         }
 
-        if (factsAvailableCount > 0 && factsUsedCount == 0)
-        {
-            this._log.LogError("Unable to inject memories in the prompt, not enough tokens available");
-            noAnswerFound.NoResultReason = "Unable to use memories";
-            yield return noAnswerFound;
-            yield break;
-        }
+        //if (factsAvailableCount > 0 && factsUsedCount == 0)
+        //{
+        //    this._log.LogError("Unable to inject memories in the prompt, not enough tokens available");
+        //    noAnswerFound.NoResultReason = "Unable to use memories";
+        //    yield return noAnswerFound;
+        //    yield break;
+        //}
 
-        if (factsUsedCount == 0)
-        {
-            this._log.LogWarning("No memories available");
-            noAnswerFound.NoResultReason = "No memories available";
-            yield return noAnswerFound;
-            yield break;
-        }
+        //if (factsUsedCount == 0)
+        //{
+        //    this._log.LogWarning("No memories available");
+        //    noAnswerFound.NoResultReason = "No memories available";
+        //    yield return noAnswerFound;
+        //    yield break;
+        //}
+
         var charsGenerated = 0;
         var prompt = string.Empty;
         var completeAnswer = new StringBuilder();
-        await foreach (var x in this.GenerateAnswerChunk(question, facts.ToString(), context, cancellationToken, out prompt).ConfigureAwait(true))
+        await foreach (var chunk in this.GenerateAnswerChunk(question, facts, factCitations, context, cancellationToken, out prompt).ConfigureAwait(true))
         {
-            completeAnswer.Append(x.GeneratedText);
-            var text = new StringBuilder().Append(x.GeneratedText);
-            if (this._log.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Trace) && text.Length - charsGenerated >= 30)
+            completeAnswer.Append(chunk.GeneratedText);
+            if (this._log.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Trace) && chunk.GeneratedText.Length - charsGenerated >= 30)
             {
-                charsGenerated = text.Length;
+                charsGenerated = chunk.GeneratedText.Length;
                 this._log.LogTrace("{0} chars generated", charsGenerated);
             }
             var newAnswer = new MemoryAnswer
             {
                 Question = question,
                 NoResult = false,
-                Result = text.ToString(),
-                CompletionUsage = new CompletionUsage(x.CompletionTokens, x.PromptTokens, x.TotalTokens)
+                Result = chunk.GeneratedText,
+                CompletionUsage = new CompletionUsage(chunk.CompletionTokens, chunk.PromptTokens, chunk.TotalTokens)
             };
             this._log.LogInformation("Chunk: '{0}", newAnswer.Result);
             yield return newAnswer;
@@ -671,7 +838,7 @@ public sealed class SearchClient : ISearchClient
         return promptSegments;
     }
 
-    private IAsyncEnumerable<string> GenerateAnswer(string question, string facts, IContext? context, CancellationToken token, out string prompt)
+    private IAsyncEnumerable<string> GenerateAnswer(string question, List<string> facts, List<string> factCitations, IContext? context, CancellationToken token, out string prompt)
     {
         // LLM Options
         int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
@@ -689,17 +856,26 @@ public sealed class SearchClient : ISearchClient
         };
 
         // Generate Prompt
-        List<PromptSegment> promptSegments = this.GenerateAnswerPromptSegments(question, facts, context);
+        List<PromptSegment> promptSegments = this.GenerateAnswerPromptSegments(question, facts, factCitations, context);
         prompt = GenerateAnswerPrompt(promptSegments);
 
         // Generate Answer
         return this._textGenerator.CompleteChatAsync(promptSegments, options, token);
     }
 
-    private List<PromptSegment> GenerateAnswerPromptSegments(string question, string facts, IContext? context)
+    private List<PromptSegment> GenerateAnswerPromptSegments(string question, List<string> facts, List<string> factCitations, IContext? context)
     {
         List<PromptSegment> promptSegments = new();
         var systemPrompt = new StringBuilder();
+        string answerPrompt = context.GetCustomRagPromptOrDefault(this._answerPrompt);
+
+        var maxTokens = this._config.MaxAskPromptSize > 0
+            ? this._config.MaxAskPromptSize
+            : this._textGenerator.MaxTokenTotal;
+        var tokensAvailable = maxTokens
+                              - this._textGenerator.CountTokens(answerPrompt)
+                              - this._textGenerator.CountTokens(question)
+                              - this._config.AnswerTokens;
 
         // System Prompt
         string emptyAnswer = context.GetCustomEmptyAnswerTextOrDefault(this._config.EmptyAnswer);
@@ -709,16 +885,42 @@ public sealed class SearchClient : ISearchClient
 
         // Additional Prompt
         var additionalPrompt = context.GetCustomRagAdditionalPromptOrDefault(string.Empty);
+        //if (!string.IsNullOrEmpty(additionalPrompt))
+        //{
+        //    additionalPrompt = $"\r\n\r\nAdditional Instructions:\r\n{additionalPrompt}";
+        //    systemPrompt.Append(additionalPrompt);
+        //}
+
+        // Context
+        systemPrompt.Append("\r\n\r\nContext:");
         if (!string.IsNullOrEmpty(additionalPrompt))
         {
-            additionalPrompt = $"\r\n\r\nAdditional Instructions:\r\n{additionalPrompt}";
+            additionalPrompt = $"\r\n{additionalPrompt}";
             systemPrompt.Append(additionalPrompt);
         }
 
-        // Facts
-        if (!string.IsNullOrEmpty(facts.Trim()))
+        // Append Facts
+        // Summarize Facts
+        var summarizedFacts = this.SummarizeFactsAsync(facts).ConfigureAwait(false).GetAwaiter().GetResult();
+        //if (!string.IsNullOrEmpty(summarizedFacts.Trim()))
+        //{
+        //    systemPrompt.Append("\r\n" + summarizedFacts.Trim());
+        //}
+        if (summarizedFacts != null)
         {
-            systemPrompt.Append("\r\n\r\nFacts:\r\n" + facts.Trim());
+            foreach (var fact in summarizedFacts.Summaries)
+            {
+                // Use the partition/chunk only if there's room for it
+                var size = this._textGenerator.CountTokens(fact.AbstractiveSummary);
+                if (size >= tokensAvailable)
+                {
+                    break; // Stop after reaching the max number of tokens
+                }
+
+                var summary = (!fact.AbstractiveSummary.StartsWith("==== [File", false, CultureInfo.CurrentCulture) ? "Deepak" : string.Empty) + fact.AbstractiveSummary;
+                systemPrompt.Append("\r\n" + summary);
+                tokensAvailable -= size;
+            }
         }
 
         promptSegments.Add(new PromptSegment(ChatRoles.System, "\r\n" + systemPrompt));
@@ -756,6 +958,24 @@ public sealed class SearchClient : ISearchClient
         return promptSegments;
     }
 
+    private async Task<SummarizedTextResponse?> SummarizeFactsAsync(List<string> facts)
+    {
+        using var client = this._httpClientFactory.CreateClient();
+        client.Timeout = new TimeSpan(0, 0, 600);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "http://localhost:5000/summarize");
+        var content = new StringContent(JsonSerializer.Serialize(new SummarizedTextRequest { Texts = facts }), null, "application/json");
+        request.Content = content;
+        var response = await client.SendAsync(request).ConfigureAwait(false);
+        // response.EnsureSuccessStatusCode();
+        if (response.IsSuccessStatusCode)
+        {
+            return await response.Content.ReadFromJsonAsync<SummarizedTextResponse>().ConfigureAwait(false);
+        }
+
+        return null;
+    }
+
     private static string GenerateAnswerPrompt(List<PromptSegment> promptSegments)
     {
         var promptBuilder = new StringBuilder();
@@ -767,7 +987,7 @@ public sealed class SearchClient : ISearchClient
         return promptBuilder.ToString();
     }
 
-    private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, string facts, IContext? context, CancellationToken token, out string prompt)
+    private IAsyncEnumerable<TextGenerationResult> GenerateAnswerChunk(string question, List<string> facts, List<string> factCitations, IContext? context, CancellationToken token, out string prompt)
     {
         // LLM Options
         int maxTokens = context.GetCustomRagMaxTokensOrDefault(this._config.AnswerTokens);
@@ -785,7 +1005,7 @@ public sealed class SearchClient : ISearchClient
         };
 
         // Generate Prompt
-        List<PromptSegment> promptSegments = this.GenerateAnswerPromptSegments(question, facts, context);
+        List<PromptSegment> promptSegments = this.GenerateAnswerPromptSegments(question, facts, factCitations, context);
         prompt = GenerateAnswerPrompt(promptSegments);
 
         // Generate Answer

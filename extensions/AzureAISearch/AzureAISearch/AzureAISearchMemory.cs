@@ -219,6 +219,8 @@ public class AzureAISearchMemory : IMemoryDb, IMemoryDbUpsertBatch
             QueryCaption = new QueryCaption(QueryCaptionType.Extractive),
             QueryAnswer = new QueryAnswer(QueryAnswerType.Extractive)
         };
+        options.SemanticSearch.QueryAnswer.Count = 3; options.SemanticSearch.QueryAnswer.Threshold = 1;
+        options.SemanticSearch.QueryCaption.HighlightEnabled = true;
 
         // Remove empty filters
         filters = filters?.Where(f => !f.IsEmpty()).ToList();
@@ -249,11 +251,11 @@ public class AzureAISearchMemory : IMemoryDb, IMemoryDbUpsertBatch
         var count = 0;
         await foreach (SearchResult<AzureAISearchMemoryRecord>? doc in searchResult.Value.GetResultsAsync().ConfigureAwait(false))
         {
-            if (doc == null || doc.Score < minDistance) { continue; }
+            if (doc == null || doc.SemanticSearch.RerankerScore < minDistance) { continue; }
 
             MemoryRecord memoryRecord = doc.Document.ToMemoryRecord(withEmbeddings);
 
-            var documentScore = this._useHybridSearch ? doc.Score ?? 0 : ScoreToCosineSimilarity(doc.Score ?? 0);
+            var documentScore = this._useHybridSearch ? doc.SemanticSearch.RerankerScore ?? 0 : ScoreToCosineSimilarity(doc.SemanticSearch.RerankerScore ?? 0);
             yield return (memoryRecord, documentScore);
 
             // Stop after returning the amount requested, even if storage is returning more records

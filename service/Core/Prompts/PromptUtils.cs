@@ -2,7 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.RegularExpressions;
+using DocumentFormat.OpenXml.Office2010.Word;
 
 namespace Microsoft.KernelMemory.Prompts;
 
@@ -17,6 +19,10 @@ internal static class PromptUtils
         string factContent,
         string? source = "",
         string? relevance = "",
+        string? fileId = "",
+        string? documentId = "",
+        int partitionNumber = 0,
+        int sectionNumber = 0,
         string? recordId = "",
         TagCollection? tags = null,
         Dictionary<string, object>? metadata = null)
@@ -24,6 +30,10 @@ internal static class PromptUtils
         var result = template
             .Replace("{{$source}}", source, StringComparison.Ordinal)
             .Replace("{{$relevance}}", relevance, StringComparison.Ordinal)
+            .Replace("{{$fileId}}", fileId, StringComparison.Ordinal)
+            .Replace("{{$documentId}}", documentId, StringComparison.Ordinal)
+            .Replace("{{$partitionNumber}}", partitionNumber.ToString(CultureInfo.CurrentCulture), StringComparison.Ordinal)
+            .Replace("{{$sectionNumber}}", sectionNumber.ToString(CultureInfo.CurrentCulture), StringComparison.Ordinal)
             .Replace("{{$memoryId}}", recordId, StringComparison.Ordinal);
 
         // {{$tag[X]}}

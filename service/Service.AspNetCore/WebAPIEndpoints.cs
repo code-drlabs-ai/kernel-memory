@@ -92,7 +92,7 @@ public static class WebAPIEndpoints
                 {
                     return Results.Problem(title: "Document upload failed", detail: e.Message, statusCode: 503);
                 }
-            })            
+            })
             .Produces<UploadAccepted>(StatusCodes.Status202Accepted)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)

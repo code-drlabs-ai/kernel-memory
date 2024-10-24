@@ -8,6 +8,13 @@ namespace Microsoft.KernelMemory;
 
 public class Citation
 {
+    ///// <summary>
+    ///// Citation Number in the sequence of citations.
+    ///// </summary>
+    //[JsonPropertyName("link")]
+    //[JsonPropertyOrder(1)]
+    //public int Number { get; set; } = 1;
+
     /// <summary>
     /// Link to the source, if available.
     /// </summary>
