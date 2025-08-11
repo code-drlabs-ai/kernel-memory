@@ -1,108 +1,168 @@
 # ===================================================================
-# GITHUB ACTIONS WORKFLOW: KERNEL SERVICE API CI/CD PIPELINE
+# GITHUB ACTIONS WORKFLOW: KERNEL MEMORY SERVICE API - UAT DEPLOYMENT
 #
 # PURPOSE:
-# This pipeline builds and deploys the .NET code for the Kernel Service API
-# from the 'kernel-memory' repository to its dedicated Azure App Service
-# in the UAT environment.
+# This CI/CD pipeline builds and deploys the Kernel Memory Service API
+# from the 'kernel-memory' repository to its Azure App Service in the
+# UAT environment.  
+#
+# SECURITY & BEST PRACTICES:
+#   - Uses OIDC (OpenID Connect) for passwordless Azure authentication.
+#   - Authenticates to a private GitHub NuGet feed securely using
+#     a Personal Access Token (PAT) stored in GitHub Secrets.
+#   - Avoids storing any secrets in source control.
+#   - Keeps build and deploy jobs separate for cleaner artifacts.
 # ===================================================================
 
 name: Deploy Kernel Service API to UAT
 
-# --- TRIGGERS ---
-# This pipeline runs automatically on any push to the 'main' branch of this repository.
+# -------------------------------------------------------------------
+# TRIGGERS
+# -------------------------------------------------------------------
+# - Runs automatically on any push to 'main'.
+# - Can be triggered manually via Actions tab.
 on:
   push:
     branches:
       - main
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# --- PERMISSIONS ---
-# This is required for the OIDC token exchange to work.
+# -------------------------------------------------------------------
+# PERMISSIONS
+# -------------------------------------------------------------------
+# Required for:
+# - OIDC token exchange with Azure
+# - Reading repository contents
 permissions:
   id-token: write
   contents: read
 
-# --- ENVIRONMENT VARIABLES ---
-# These variables are configured specifically for the Kernel Service API in UAT.
+# -------------------------------------------------------------------
+# ENVIRONMENT VARIABLES
+# -------------------------------------------------------------------
 env:
-  AZURE_WEBAPP_NAME: 'convers-uat-kernel-service-api-app-cmjuaknlob7cc'
-  AZURE_RESOURCE_GROUP: 'convers-uat-rg' # Assuming it's in the convers resource group
-  DOTNET_VERSION: '8.0.x'
-  # NOTE: The source path may need to be adjusted based on the actual project structure
-  SOURCE_DIRECTORY: '.' 
+  AZURE_WEBAPP_NAME: 'convers-uat-kernel-service-api-app-cmjuaknlob7cc' # Target Azure App Service (UAT)
+  AZURE_RESOURCE_GROUP: 'convers-uat-rg'                                 # Resource group name
+  DOTNET_VERSION: '8.0.x'                                               # .NET SDK version
+  SOURCE_DIRECTORY: '.'                                                 # Root path of the project
+  PRIVATE_NUGET_FEED: 'https://nuget.pkg.github.com/code-drlabs-ai/index.json' # Private feed URL
+  GITHUB_NUGET_USER: 'code-drlabs-ai'                                   # GitHub org/user for NuGet feed
 
-# --- JOBS ---
-jobs:
-  # ===================================================================
-  # JOB: BUILD
-  # ===================================================================
-  build:
-    runs-on: ubuntu-latest
+# -------------------------------------------------------------------
+# JOB: BUILD
+# -------------------------------------------------------------------
+build:
+  runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+  steps:
+    # ---------------------------
+    # STEP 1: Checkout source code
+    # ---------------------------
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+    # ---------------------------
+    # STEP 2: Install .NET SDK
+    # ---------------------------
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # NOTE: This new repository may also require a private NuGet feed.
-      # If the build fails with NuGet errors, add the 'Add private NuGet source'
-      # and 'Restore NuGet packages' steps from the other pipelines here.
-      
-      - name: Restore, Build, and Publish
-        run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish
+    # ---------------------------
+    # STEP 3: Configure NuGet (Private Feed)
+    # ---------------------------
+    # Ensures the pipeline can restore private packages hosted in GitHub Packages.
+    - name: Ensure nuget.config exists
+      run: dotnet new nugetconfig
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dotnet-app-kernel-service
-          path: ./publish
+    - name: Add private NuGet source
+      run: |
+        dotnet nuget add source "${{ env.PRIVATE_NUGET_FEED }}" \
+          --name "github" \
+          --username "${{ env.GITHUB_NUGET_USER }}" \
+          --password "${{ secrets.NUGET_PAT }}" \
+          --store-password-in-clear-text \
+          --configfile nuget.config
+        dotnet nuget list source --configfile nuget.config
 
-  # ===================================================================
-  # JOB: DEPLOY
-  # ===================================================================
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
+    # ---------------------------
+    # STEP 4: Restore dependencies
+    # ---------------------------
+    - name: Restore NuGet packages
+      run: dotnet restore ${{ env.SOURCE_DIRECTORY }} --configfile nuget.config
 
-    environment:
-      name: 'UAT'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    # ---------------------------
+    # STEP 5: Build & Publish
+    # ---------------------------
+    - name: Build and publish application
+      run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish
 
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dotnet-app-kernel-service
+    # ---------------------------
+    # STEP 6: Save build artifacts
+    # ---------------------------
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dotnet-app-kernel-service
+        path: ./publish
 
-      - name: Azure CLI login via OIDC
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+# -------------------------------------------------------------------
+# JOB: DEPLOY
+# -------------------------------------------------------------------
+deploy:
+  runs-on: ubuntu-latest
+  needs: build
 
-      - name: Set ASP.NET Core environment variable
-        run: |
-          az webapp config appsettings set \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --settings "ASPNETCORE_ENVIRONMENT=Staging"
+  environment:
+    name: 'UAT'
+    url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
-      - name: Deploy to Azure App Service
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: .
+  steps:
+    # ---------------------------
+    # STEP 1: Download build output
+    # ---------------------------
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: dotnet-app-kernel-service
 
-      - name: Azure CLI logout
-        run: |
-          az logout
-          az cache purge
-          az account clear
+    # ---------------------------
+    # STEP 2: Login to Azure using OIDC
+    # ---------------------------
+    # No secrets stored — uses federated credentials configured in Azure AD.
+    - name: Azure CLI login via OIDC
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # ---------------------------
+    # STEP 3: Set environment variables in Azure App Service
+    # ---------------------------
+    - name: Set ASP.NET Core environment variable
+      run: |
+        az webapp config appsettings set \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --settings "ASPNETCORE_ENVIRONMENT=Staging"
+
+    # ---------------------------
+    # STEP 4: Deploy to Azure App Service
+    # ---------------------------
+    - name: Deploy to Azure App Service
+      id: deploy-to-webapp
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: .
+
+    # ---------------------------
+    # STEP 5: Cleanup Azure CLI session
+    # ---------------------------
+    - name: Azure CLI logout
+      run: |
+        az logout
+        az cache purge
+        az account clear
