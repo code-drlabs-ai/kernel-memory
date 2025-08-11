@@ -61,8 +61,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Remove local NuGet.Config to avoid invalid credentials
-        run: rm -f ./service/Core/NuGet.Config  
+      - name: Fix NuGet.Config to avoid credential errors
+        run: |
+          sed -i 's/<add key="Username" value="[^"]*" \/>/<add key="Username" value="" \/>/g' ./service/Core/NuGet.Config
+          sed -i 's/<add key="ClearTextPassword" value="[^"]*" \/>/<add key="ClearTextPassword" value="" \/>/g' ./service/Core/NuGet.Config 
 
       # ---------------------------
       # STEP 2: Install .NET SDK
