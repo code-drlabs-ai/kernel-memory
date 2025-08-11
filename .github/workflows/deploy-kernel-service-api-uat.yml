@@ -72,9 +72,6 @@ jobs:
       # ---------------------------
       # STEP 3: Configure NuGet (Private Feed)
       # ---------------------------
-      - name: Ensure nuget.config exists
-        run: dotnet new nugetconfig
-
       - name: Add private NuGet source
         run: |
           dotnet nuget add source "${{ env.PRIVATE_NUGET_FEED }}" \
@@ -82,8 +79,8 @@ jobs:
             --username "${{ env.GITHUB_NUGET_USER }}" \
             --password "${{ secrets.NUGET_PAT }}" \
             --store-password-in-clear-text \
-            --configfile nuget.config
-          dotnet nuget list source --configfile nuget.config
+            --configfile NuGet.Config
+          dotnet nuget list source --configfile NuGet.Config
 
       # ---------------------------
       # STEP 4: Restore dependencies
