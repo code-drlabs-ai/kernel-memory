@@ -32,7 +32,7 @@ env:
   AZURE_WEBAPP_NAME: 'convers-uat-kernel-service-api-app-cmjuaknlob7cc'
   AZURE_RESOURCE_GROUP: 'convers-uat-rg'
   DOTNET_VERSION: '8.0.x'
-  SOURCE_DIRECTORY: './service' # The root directory of the .NET solution
+  SOURCE_DIRECTORY: '.' # The root directory of the .NET solution
   PRIVATE_NUGET_FEED: 'https://nuget.pkg.github.com/code-drlabs-ai/index.json'
   GITHUB_NUGET_USER: 'code-drlabs-ai'
 
