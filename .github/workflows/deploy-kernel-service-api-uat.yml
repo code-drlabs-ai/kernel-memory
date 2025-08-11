@@ -61,6 +61,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Remove local NuGet.Config to avoid invalid credentials
+        run: rm -f ./service/Core/NuGet.Config  
+
       # ---------------------------
       # STEP 2: Install .NET SDK
       # ---------------------------
