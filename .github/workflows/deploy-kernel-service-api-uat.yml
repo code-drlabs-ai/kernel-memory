@@ -40,7 +40,7 @@ env:
   AZURE_RESOURCE_GROUP: 'convers-uat-rg'                                 # Resource group name
   DOTNET_VERSION: '8.0.x'                                               # .NET SDK version
   SOURCE_DIRECTORY: '.'                                                 # Root path of the project
-  PRIVATE_NUGET_FEED: 'https://nuget.pkg.github.com/code-drlabs-ai/index.json' # Private feed URL
+  PRIVATE_NUGET_FEED: https://nuget.pkg.github.com/code-drlabs-ai/index.json # Private feed URL
   GITHUB_NUGET_USER: 'code-drlabs-ai'                                   # GitHub org/user for NuGet feed
 
 # -------------------------------------------------------------------
