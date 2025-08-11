@@ -4,14 +4,7 @@
 # PURPOSE:
 # This CI/CD pipeline builds and deploys the Kernel Memory Service API
 # from the 'kernel-memory' repository to its Azure App Service in the
-# UAT environment.  
-#
-# SECURITY & BEST PRACTICES:
-#   - Uses OIDC (OpenID Connect) for passwordless Azure authentication.
-#   - Authenticates to a private GitHub NuGet feed securely using
-#     a Personal Access Token (PAT) stored in GitHub Secrets.
-#   - Avoids storing any secrets in source control.
-#   - Keeps build and deploy jobs separate for cleaner artifacts.
+# UAT environment.
 # ===================================================================
 
 name: Deploy Kernel Service API to UAT
@@ -36,18 +29,17 @@ permissions:
 # ENVIRONMENT VARIABLES
 # -------------------------------------------------------------------
 env:
-  AZURE_WEBAPP_NAME: 'convers-uat-kernel-service-api-app-cmjuaknlob7cc' # Target Azure App Service (UAT)
-  AZURE_RESOURCE_GROUP: 'convers-uat-rg'                                 # Resource group name
-  DOTNET_VERSION: '8.0.x'                                               # .NET SDK version
-  SOURCE_DIRECTORY: '.'                                                 # Root path of the project
-  PRIVATE_NUGET_FEED: 'https://nuget.pkg.github.com/code-drlabs-ai/index.json' # Private feed URL
-  GITHUB_NUGET_USER: 'code-drlabs-ai'                                   # GitHub org/user for NuGet feed
+  AZURE_WEBAPP_NAME: 'convers-uat-kernel-service-api-app-cmjuaknlob7cc'
+  AZURE_RESOURCE_GROUP: 'convers-uat-rg'
+  DOTNET_VERSION: '8.0.x'
+  SOURCE_DIRECTORY: './service' # The root directory of the .NET solution
+  PRIVATE_NUGET_FEED: 'https://nuget.pkg.github.com/code-drlabs-ai/index.json'
+  GITHUB_NUGET_USER: 'code-drlabs-ai'
 
 # -------------------------------------------------------------------
 # JOBS
 # -------------------------------------------------------------------
 jobs:
-
   # -----------------------------------------------------------------
   # JOB: BUILD
   # -----------------------------------------------------------------
@@ -61,11 +53,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Fix NuGet.Config to avoid credential errors
-        run: |
-          sed -i 's/<add key="Username" value="[^"]*" \/>/<add key="Username" value="" \/>/g' ./service/Core/NuGet.Config
-          sed -i 's/<add key="ClearTextPassword" value="[^"]*" \/>/<add key="ClearTextPassword" value="" \/>/g' ./service/Core/NuGet.Config 
-
       # ---------------------------
       # STEP 2: Install .NET SDK
       # ---------------------------
@@ -77,19 +64,29 @@ jobs:
       # ---------------------------
       # STEP 3: Configure NuGet (Private Feed)
       # ---------------------------
-      - name: Add private NuGet source
+      # This step creates a new, clean nuget.config at the root of the
+      # repository. This is the most reliable way to handle private feeds.
+      - name: Create nuget.config for private feed
         run: |
-          dotnet nuget add source "${{ env.PRIVATE_NUGET_FEED }}" \
-            --name "github" \
-            --username "${{ env.GITHUB_NUGET_USER }}" \
-            --password "${{ secrets.NUGET_PAT }}" \
-            --store-password-in-clear-text
-            
-          dotnet nuget list source
+          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />
+              <add key=\"github\" value=\"${{ env.PRIVATE_NUGET_FEED }}\" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key=\"Username\" value=\"${{ env.GITHUB_NUGET_USER }}\" />
+                <add key=\"ClearTextPassword\" value=\"${{ secrets.NUGET_PAT }}\" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>" > nuget.config
 
       # ---------------------------
       # STEP 4: Restore dependencies
       # ---------------------------
+      # We explicitly point to the new nuget.config file.
       - name: Restore NuGet packages
         run: dotnet restore ${{ env.SOURCE_DIRECTORY }} --configfile nuget.config
 
@@ -97,7 +94,7 @@ jobs:
       # STEP 5: Build & Publish
       # ---------------------------
       - name: Build and publish application
-        run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish
+        run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish --no-restore
 
       # ---------------------------
       # STEP 6: Save build artifacts
