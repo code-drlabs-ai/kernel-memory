@@ -79,8 +79,7 @@ jobs:
             --username "${{ env.GITHUB_NUGET_USER }}" \
             --password "${{ secrets.NUGET_PAT }}" \
             --store-password-in-clear-text \
-            --configfile NuGet.Config
-          dotnet nuget list source --configfile NuGet.Config
+          dotnet nuget list source
 
       # ---------------------------
       # STEP 4: Restore dependencies
