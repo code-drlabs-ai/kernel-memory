@@ -16,6 +16,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'service/Service/**' # Corrected path trigger
   workflow_dispatch:
 
 # -------------------------------------------------------------------
@@ -32,7 +34,7 @@ env:
   AZURE_WEBAPP_NAME: 'convers-uat-kernel-service-api-app-cmjuaknlob7cc'
   AZURE_RESOURCE_GROUP: 'convers-uat-rg'
   DOTNET_VERSION: '8.0.x'
-  SOURCE_DIRECTORY: 'service/Service.AspNetCore' # The root directory of the .NET solution
+  SOURCE_DIRECTORY: 'service/Service' # Corrected source directory
   PRIVATE_NUGET_FEED: 'https://nuget.pkg.github.com/code-drlabs-ai/index.json'
   GITHUB_NUGET_USER: 'code-drlabs-ai'
 
@@ -64,8 +66,6 @@ jobs:
       # ---------------------------
       # STEP 3: Configure NuGet (Private Feed)
       # ---------------------------
-      # This step creates a new, clean nuget.config at the root of the
-      # repository. This is the most reliable way to handle private feeds.
       - name: Create nuget.config for private feed
         run: |
           echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
@@ -86,7 +86,6 @@ jobs:
       # ---------------------------
       # STEP 4: Restore dependencies
       # ---------------------------
-      # We explicitly point to the new nuget.config file.
       - name: Restore NuGet packages
         run: dotnet restore ${{ env.SOURCE_DIRECTORY }} --configfile nuget.config
 
