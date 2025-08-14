@@ -68,6 +68,21 @@ internal static class ConfigurationBuilderExtensions
                     builder.AddJsonFile(f2, optional: false);
                 }
             }
+
+            // Add appsettings.production.json, used for production settings and credentials
+            if (env.Equals("staging", StringComparison.OrdinalIgnoreCase))
+            {
+                var f1 = Path.Join(settingsDirectory, "appsettings.staging.json");
+                var f2 = Path.Join(settingsDirectory, "appsettings.Staging.json");
+                if (File.Exists(f1))
+                {
+                    builder.AddJsonFile(f1, optional: false);
+                }
+                else if (File.Exists(f2))
+                {
+                    builder.AddJsonFile(f2, optional: false);
+                }
+            }
         }
 
         // Add Secret Manager as source
