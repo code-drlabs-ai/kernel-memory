@@ -102,8 +102,8 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     env:
-      AZURE_WEBAPP_NAME: 'convers-dev-kernel-service-api-app-...' # <-- REPLACE with DEV App Service Name
-      AZURE_RESOURCE_GROUP: 'convers-dev-rg'
+      AZURE_WEBAPP_NAME: 'certainty-ai-kernel-service-api-3yf' # <-- REPLACE with DEV App Service Name
+      AZURE_RESOURCE_GROUP: 'rg.certainty.ai'
 
     steps:
       - name: Download build artifact
