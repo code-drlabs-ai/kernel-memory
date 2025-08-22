@@ -1,0 +1,237 @@
+# ===================================================================
+# GITHUB ACTIONS WORKFLOW: KERNEL SERVICE API - MULTI-ENVIRONMENT CI/CD
+#
+# PURPOSE:
+# This single pipeline builds the Kernel Service API application once and
+# deploys it to the correct Azure App Service based on the Git branch.
+#
+# DEPLOYMENT LOGIC:
+#   - Push to 'develop' -> Deploys to DEV
+#   - Push to 'main'    -> Deploys to UAT
+#   - Manual Trigger    -> Deploys to PROD (from 'main' branch)
+# ===================================================================
+
+name: Deploy Kernel Service API (Multi-Environment)
+
+# -------------------------------------------------------------------
+# TRIGGERS
+# -------------------------------------------------------------------
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'service/Service/**'
+  workflow_dispatch:
+
+# -------------------------------------------------------------------
+# PERMISSIONS
+# -------------------------------------------------------------------
+permissions:
+  id-token: write
+  contents: read
+
+# -------------------------------------------------------------------
+# ENVIRONMENT VARIABLES (GLOBAL)
+# -------------------------------------------------------------------
+env:
+  DOTNET_VERSION: '8.0.x'
+  SOURCE_DIRECTORY: 'service/Service'
+  PRIVATE_NUGET_FEED: 'https://nuget.pkg.github.com/code-drlabs-ai/index.json'
+  GITHUB_NUGET_USER: 'code-drlabs-ai'
+
+# -------------------------------------------------------------------
+# JOBS
+# -------------------------------------------------------------------
+jobs:
+  # -----------------------------------------------------------------
+  # JOB: BUILD
+  # -----------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Create nuget.config for private feed
+        run: |
+          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />
+              <add key=\"github\" value=\"${{ env.PRIVATE_NUGET_FEED }}\" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key=\"Username\" value=\"${{ env.GITHUB_NUGET_USER }}\" />
+                <add key=\"ClearTextPassword\" value=\"${{ secrets.NUGET_PAT }}\" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>" > nuget.config
+
+      - name: Restore NuGet packages
+        run: dotnet restore ${{ env.SOURCE_DIRECTORY }} --configfile nuget.config
+
+      - name: Build and publish application
+        run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish --no-restore
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-app-kernel-service
+          path: ./publish
+
+  # -----------------------------------------------------------------
+  # JOB: DEPLOY TO DEV
+  # -----------------------------------------------------------------
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+
+    environment:
+      name: 'DEV'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    env:
+      AZURE_WEBAPP_NAME: 'convers-dev-kernel-service-api-app-...' # <-- REPLACE with DEV App Service Name
+      AZURE_RESOURCE_GROUP: 'convers-dev-rg'
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-app-kernel-service
+
+      - name: Azure CLI login via OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set ASP.NET Core environment variable
+        run: |
+          az webapp config appsettings set \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --settings "ASPNETCORE_ENVIRONMENT=Development"
+
+      - name: Deploy to Azure App Service
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: .
+
+      - name: Azure CLI logout
+        run: |
+          az logout
+          az cache purge
+          az account clear
+
+  # -----------------------------------------------------------------
+  # JOB: DEPLOY TO UAT
+  # -----------------------------------------------------------------
+  deploy-uat:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    environment:
+      name: 'UAT'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    env:
+      AZURE_WEBAPP_NAME: 'convers-uat-kernel-service-api-app-cmjuaknlob7cc'
+      AZURE_RESOURCE_GROUP: 'convers-uat-rg'
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-app-kernel-service
+
+      - name: Azure CLI login via OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set ASP.NET Core environment variable
+        run: |
+          az webapp config appsettings set \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --settings "ASPNETCORE_ENVIRONMENT=Staging"
+
+      - name: Deploy to Azure App Service
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: .
+
+      - name: Azure CLI logout
+        run: |
+          az logout
+          az cache purge
+          az account clear
+
+  # -----------------------------------------------------------------
+  # JOB: DEPLOY TO PROD
+  # -----------------------------------------------------------------
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+
+    environment:
+      name: 'PROD'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    env:
+      AZURE_WEBAPP_NAME: 'convers-prod-kernel-service-api-app-...' # <-- REPLACE with PROD App Service Name
+      AZURE_RESOURCE_GROUP: 'convers-prod-rg'
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-app-kernel-service
+
+      - name: Azure CLI login via OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set ASP.NET Core environment variable
+        run: |
+          az webapp config appsettings set \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --settings "ASPNETCORE_ENVIRONMENT=Production"
+
+      - name: Deploy to Azure App Service
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: .
+
+      - name: Azure CLI logout
+        run: |
+          az logout
+          az cache purge
+          az account clear
