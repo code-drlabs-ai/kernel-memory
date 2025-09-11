@@ -88,6 +88,7 @@ jobs:
         with:
           name: dotnet-app-kernel-service
           path: ./publish
+          retention-days: 7 # Automatically delete this artifact after 7 days
 
   # -----------------------------------------------------------------
   # JOB: DEPLOY TO DEV
