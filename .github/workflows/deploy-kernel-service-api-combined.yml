@@ -56,13 +56,29 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Add private NuGet source
+      - name: Create nuget.config for private feed
         run: |
-          dotnet nuget add source "${{ env.PRIVATE_NUGET_FEED }}" --name "github" --username "${{ env.GITHUB_NUGET_USER }}" --password "${{ secrets.NUGET_PAT }}" --store-password-in-clear-text
+          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />
+              <add key=\"github\" value=\"${{ env.PRIVATE_NUGET_FEED }}\" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key=\"Username\" value=\"${{ env.GITHUB_NUGET_USER }}\" />
+                <add key=\"ClearTextPassword\" value=\"${{ secrets.NUGET_PAT }}\" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>" > nuget.config
+
+      - name: Restore NuGet packages
+        run: dotnet restore ${{ env.SOURCE_DIRECTORY }} --configfile nuget.config
 
       - name: Build and publish application
         run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish --no-restore
-
+        
       - name: Azure CLI login via OIDC
         uses: azure/login@v1
         with:
@@ -106,13 +122,29 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Add private NuGet source
+      - name: Create nuget.config for private feed
         run: |
-          dotnet nuget add source "${{ env.PRIVATE_NUGET_FEED }}" --name "github" --username "${{ env.GITHUB_NUGET_USER }}" --password "${{ secrets.NUGET_PAT }}" --store-password-in-clear-text
+          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />
+              <add key=\"github\" value=\"${{ env.PRIVATE_NUGET_FEED }}\" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key=\"Username\" value=\"${{ env.GITHUB_NUGET_USER }}\" />
+                <add key=\"ClearTextPassword\" value=\"${{ secrets.NUGET_PAT }}\" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>" > nuget.config
+
+      - name: Restore NuGet packages
+        run: dotnet restore ${{ env.SOURCE_DIRECTORY }} --configfile nuget.config
 
       - name: Build and publish application
         run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish --no-restore
-
+        
       - name: Azure CLI login via OIDC
         uses: azure/login@v1
         with:
@@ -156,13 +188,29 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Add private NuGet source
+      - name: Create nuget.config for private feed
         run: |
-          dotnet nuget add source "${{ env.PRIVATE_NUGET_FEED }}" --name "github" --username "${{ env.GITHUB_NUGET_USER }}" --password "${{ secrets.NUGET_PAT }}" --store-password-in-clear-text
-          
+          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />
+              <add key=\"github\" value=\"${{ env.PRIVATE_NUGET_FEED }}\" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key=\"Username\" value=\"${{ env.GITHUB_NUGET_USER }}\" />
+                <add key=\"ClearTextPassword\" value=\"${{ secrets.NUGET_PAT }}\" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>" > nuget.config
+
+      - name: Restore NuGet packages
+        run: dotnet restore ${{ env.SOURCE_DIRECTORY }} --configfile nuget.config
+
       - name: Build and publish application
         run: dotnet publish ${{ env.SOURCE_DIRECTORY }} --configuration Release --output ./publish --no-restore
-
+        
       - name: Azure CLI login via OIDC
         uses: azure/login@v1
         with:
@@ -182,3 +230,4 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: ./publish
+
