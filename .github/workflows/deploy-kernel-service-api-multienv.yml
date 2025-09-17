@@ -17,12 +17,12 @@ name: Deploy Kernel Service API (Multi-Environment)
 # TRIGGERS
 # -------------------------------------------------------------------
 on:
-  push:
-    branches:
-      - develop
-      - main
-    paths:
-      - 'service/Service/**'
+  #push:
+  #  branches:
+  #    - develop
+  #    - main
+  #  paths:
+  #    - 'service/Service/**'
   workflow_dispatch:
 
 # -------------------------------------------------------------------
